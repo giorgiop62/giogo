@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, CheckCircle2, Loader2, Plus, Users } from "lucide-react";
 import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
+import { fakeAuth, type AuthUser } from "@/integrations/fakeAuth";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import type { User } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/events")({ component: EventsPage });
 
@@ -23,7 +23,7 @@ function EventsPage() {
     let alive = true;
 
     async function load() {
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData } = await fakeAuth.getSession();
       const currentUser = sessionData.session?.user ?? null;
       if (!alive) return;
       setUser(currentUser);

@@ -25,8 +25,8 @@ import {
 import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
 import { supabase } from "@/integrations/supabase/client";
+import { fakeAuth, type AuthUser } from "@/integrations/fakeAuth";
 import { toast } from "sonner";
-import type { User } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/create-event")({ component: CreateEventPage });
 
@@ -108,9 +108,7 @@ function CreateEventPage() {
   const [invited, setInvited] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [authReady, setAuthReady] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [email, setEmail] = useState("");
-  const [authSending, setAuthSending] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<EditableProfile>(DEFAULT_PROFILE);
   const [nearby, setNearby] = useState<NearbyProfile[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -153,15 +151,15 @@ function CreateEventPage() {
     let alive = true;
 
     async function loadSession() {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await fakeAuth.getSession();
       if (!alive) return;
       setUser(data.session?.user ?? null);
       setAuthReady(true);
     }
 
     loadSession();
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+    const { data: listener } = fakeAuth.onAuthStateChange((_event, session) => {
+      setUser(session.session ?? null);
     });
 
     return () => {
@@ -178,13 +176,14 @@ function CreateEventPage() {
       return;
     }
 
+    const currentUser = user;
     let alive = true;
 
     async function loadProfile() {
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", user.id)
+        .eq("id", currentUser.id)
         .maybeSingle();
       if (!alive) return;
 
@@ -194,7 +193,7 @@ function CreateEventPage() {
       }
 
       setProfile({
-        display_name: data?.display_name ?? user.email?.split("@")[0] ?? "",
+        display_name: data?.display_name ?? currentUser.email.split("@")[0] ?? "",
         age: data?.age?.toString() ?? "",
         gender: data?.gender ?? "",
         city: data?.city ?? "",
@@ -264,30 +263,6 @@ function CreateEventPage() {
 
   function toggleInvite(id: string) {
     setInvited((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }
-
-  async function sendMagicLink() {
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) return;
-
-    setAuthSending(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: trimmedEmail,
-      options: {
-        emailRedirectTo:
-          typeof window !== "undefined"
-            ? `${window.location.origin}/auth/callback?next=/profile`
-            : undefined,
-      },
-    });
-    setAuthSending(false);
-
-    if (error) {
-      toast.error("Login non riuscito", { description: error.message });
-      return;
-    }
-
-    toast.success("Link inviato", { description: "Controlla la tua email per entrare." });
   }
 
   async function submit() {
@@ -364,43 +339,30 @@ function CreateEventPage() {
           </p>
         </motion.div>
 
-        <Section step={0} title="Login e profilo" icon={<LogIn className="h-4 w-4" />}>
+        <Section step={0} title="Sessione utente" icon={<LogIn className="h-4 w-4" />}>
           {!authReady ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Controllo sessione...
             </div>
           ) : !user ? (
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && sendMagicLink()}
-                type="email"
-                placeholder="email@example.com"
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none"
-              />
-              <button
-                disabled={authSending || !email.trim()}
-                onClick={sendMagicLink}
-                className="rounded-2xl gradient-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-glow disabled:opacity-40 disabled:shadow-none"
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-sm text-muted-foreground">
+              <p className="mb-3 font-semibold">Effettua il login dalla home per creare un evento locale.</p>
+              <Link
+                to="/"
+                className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold transition hover:bg-white/[0.07]"
               >
-                {authSending ? "Invio..." : "Entra"}
-              </button>
-              <p className="text-xs text-muted-foreground sm:col-span-2">
-                Serve un profilo reale per invitare persone vicine e creare eventi.
-              </p>
+                Vai al login
+              </Link>
             </div>
           ) : (
             <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-sm font-semibold">
-                  {profile.display_name || user.email} ·{" "}
-                  {profileComplete ? "profilo completo" : "profilo da completare"}
+                  {profile.display_name || user.email} · {profileComplete ? "profilo completo" : "profilo da completare"}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Il profilo contiene sesso, età, nazionalità, lingue, interessi, foto e preferenze
-                  di matching.
+                  Il profilo contiene sesso, età, nazionalità, lingue, interessi, foto e preferenze di matching.
                 </p>
               </div>
               <Link

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Heart, Send, Sparkles } from "lucide-react";
 import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
+import { useLanguage } from "@/lib/language";
 
 const ALL = [
   { name: "Mia", age: 26, color: "from-rose-500 to-pink-500", last: "okay best espresso in town, go" },

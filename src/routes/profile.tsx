@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { Image, Loader2, LocateFixed, Save, UserRound } from "lucide-react";
 import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
+import { fakeAuth, type AuthUser } from "@/integrations/fakeAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { User } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/profile")({ component: ProfilePage });
 
@@ -51,7 +51,7 @@ function splitList(value: string) {
 
 function ProfilePage() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -61,7 +61,7 @@ function ProfilePage() {
     let alive = true;
 
     async function loadProfile() {
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData } = await fakeAuth.getSession();
       const currentUser = sessionData.session?.user ?? null;
       if (!alive) return;
       setUser(currentUser);

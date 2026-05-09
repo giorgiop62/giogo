@@ -89,25 +89,6 @@ function Dashboard() {
           </p>
         </motion.div>
 
-        <motion.button
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          onClick={() => navigate({ to: "/create-event" })}
-          className="mt-6 flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition hover:bg-white/[0.07]"
-        >
-          <span className="grid h-10 w-10 place-items-center rounded-full gradient-primary text-primary-foreground shadow-glow">
-            <Plus className="h-5 w-5" />
-          </span>
-          <span className="flex-1">
-            <span className="block text-sm font-semibold">Crea il tuo evento</span>
-            <span className="block text-xs text-muted-foreground">
-              Tema, filtri, invita persone vicine
-            </span>
-          </span>
-          <span className="text-xs text-primary">Nuovo →</span>
-        </motion.button>
-
         <div className="mt-10 grid gap-4 md:grid-cols-2">
           <SessionButton
             active={sessionKind === "global"}
@@ -118,7 +99,10 @@ function Dashboard() {
           />
           <SessionButton
             active={sessionKind === "local"}
-            onClick={() => setSessionKind("local")}
+            onClick={() => {
+              setSessionKind("local");
+              navigate({ to: "/create-event" });
+            }}
             icon={<MapPin className="h-5 w-5" />}
             title="Evento locale"
             desc="Stanza con raggio geografico, interessi e tema personalizzato."

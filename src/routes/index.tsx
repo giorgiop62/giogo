@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import {
@@ -14,6 +14,9 @@ import {
 } from "lucide-react";
 import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
+import { fakeAuth, type AuthUser } from "@/integrations/fakeAuth";
+import { toast } from "sonner";
+import { useLanguage } from "@/lib/language";
 
 export const Route = createFileRoute("/")({ component: Landing });
 
@@ -32,22 +35,55 @@ function useTicker(initial: number, range = 5, interval = 2200) {
 function Landing() {
   const online = useTicker(2438, 12);
   const rooms = useTicker(74, 4);
-  const [authError, setAuthError] = useState("");
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [email, setEmail] = useState("");
+  const [authSending, setAuthSending] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const navigate = useNavigate();
+  const { t } = useLanguage();
 
   useEffect(() => {
-    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    const errorDescription = hash.get("error_description");
-    const errorCode = hash.get("error_code");
+    let alive = true;
 
-    if (!errorDescription) return;
+    async function loadSession() {
+      const { data } = await fakeAuth.getSession();
+      if (!alive) return;
+      setUser(data.session?.user ?? null);
+      setAuthReady(true);
+    }
 
-    setAuthError(
-      errorCode === "otp_expired"
-        ? "Il link email è scaduto o è già stato usato. Richiedi un nuovo link di login."
-        : errorDescription,
-    );
-    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    loadSession();
+
+    const { data: listener } = fakeAuth.onAuthStateChange((_event, session) => {
+      if (alive) setUser(session.session ?? null);
+    });
+
+    return () => {
+      alive = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
+
+  async function signOut() {
+    await fakeAuth.signOut();
+    navigate({ to: "/" });
+  }
+
+  async function sendMagicLink() {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) return;
+
+    setAuthSending(true);
+    const { error } = await fakeAuth.signInWithOtp({ email: trimmedEmail });
+    setAuthSending(false);
+
+    if (error) {
+      toast.error("Login non riuscito", { description: error?.message ?? "Errore durante il login." });
+      return;
+    }
+
+    toast.success("Login fittizio effettuato", { description: "Hai effettuato l'accesso localmente." });
+  }
 
   return (
     <div className="relative min-h-screen">
@@ -67,40 +103,61 @@ function Landing() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
             </span>
-            Live · {online.toLocaleString()} people online right now
+            {t('landing.live').replace('{count}', online.toLocaleString())}
           </div>
           <h1 className="mt-6 text-5xl font-semibold leading-[1.05] tracking-tight sm:text-7xl">
-            Speed dating,
-            <br />
-            <span className="text-gradient">reinvented in real time.</span>
+            {t('landing.title')}
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-base text-muted-foreground sm:text-lg">
-            Hop into a live round, chat or video with curated strangers, and reveal mutual matches
-            when the timer hits zero.
+            {t('landing.subtitle')}
           </p>
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link
-              to="/dashboard"
-              className="group inline-flex items-center gap-2 rounded-full gradient-primary px-7 py-3.5 font-semibold text-primary-foreground shadow-glow transition-transform hover:scale-105"
-            >
-              Join the next round
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </Link>
+            {user ? (
+              <>
+                <Link
+                  to="/dashboard"
+                  className="group inline-flex items-center gap-2 rounded-full gradient-primary px-7 py-3.5 font-semibold text-primary-foreground shadow-glow transition-transform hover:scale-105"
+                >
+                  {t('landing.enter_lobby')}
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </Link>
+                <button
+                  onClick={signOut}
+                  className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-7 py-3.5 font-semibold text-primary-foreground shadow-glow transition hover:bg-white/[0.07]"
+                >
+                  {t('landing.logout')}
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </button>
+              </>
+            ) : (
+              <div className="grid w-full gap-3 sm:grid-cols-[1fr_auto]">
+                <input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && sendMagicLink()}
+                  type="email"
+                  placeholder="email@example.com"
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none"
+                />
+                <button
+                  disabled={!authReady || authSending || !email.trim()}
+                  onClick={sendMagicLink}
+                  className="rounded-2xl gradient-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-glow disabled:opacity-40 disabled:shadow-none"
+                >
+                  {authSending ? "Invio..." : "Entra"}
+                </button>
+                <p className="text-xs text-muted-foreground sm:col-span-2">
+                  Effettua il login con email fittizia per accedere all’app.
+                </p>
+              </div>
+            )}
             <a
               href="#how"
               className="glass rounded-full px-6 py-3.5 text-sm font-medium hover:bg-white/10"
             >
-              How it works
+              {t('landing.how_it_works')}
             </a>
           </div>
-          {authError && (
-            <div className="mx-auto mt-6 max-w-lg rounded-2xl border border-primary/30 bg-primary/10 p-4 text-sm text-primary">
-              {authError}
-              <Link to="/create-event" className="ml-2 font-semibold underline underline-offset-4">
-                Richiedi nuovo link
-              </Link>
-            </div>
-          )}
         </motion.div>
 
         {/* live stats card */}
@@ -112,17 +169,17 @@ function Landing() {
         >
           <StatCard
             icon={<Users className="h-4 w-4" />}
-            label="Online"
+            labelKey="landing.online"
             value={online.toLocaleString()}
           />
           <StatCard
             icon={<Zap className="h-4 w-4" />}
-            label="Active rooms"
+            labelKey="landing.active_rooms"
             value={rooms.toString()}
             accent
           />
-          <StatCard icon={<Heart className="h-4 w-4" />} label="Matches today" value="1,284" />
-          <StatCard icon={<Star className="h-4 w-4" />} label="Avg. rating" value="4.9" />
+          <StatCard icon={<Heart className="h-4 w-4" />} labelKey="landing.matches_today" value="1,284" />
+          <StatCard icon={<Star className="h-4 w-4" />} labelKey="landing.avg_rating" value="4.9" />
         </motion.div>
 
         {/* preview floating cards */}
@@ -153,28 +210,28 @@ function Landing() {
       <section id="how" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-            How it works
+            {t('landing.how_title')}
           </p>
-          <h2 className="mt-3 text-3xl font-semibold sm:text-5xl">A round in three beats.</h2>
+          <h2 className="mt-3 text-3xl font-semibold sm:text-5xl">{t('landing.round_beats')}</h2>
         </div>
         <div className="mt-12 grid gap-4 md:grid-cols-3">
           <Step
             n="01"
             icon={<Sparkles className="h-5 w-5" />}
-            title="Build your vibe"
-            desc="Photo, age, a couple of interests. Sixty seconds."
+            title={t('landing.build_vibe')}
+            desc={t('landing.build_desc')}
           />
           <Step
             n="02"
             icon={<Users className="h-5 w-5" />}
-            title="Drop into a room"
-            desc="We balance the lobby and start the moment it's fair."
+            title={t('landing.drop_room')}
+            desc={t('landing.drop_desc')}
           />
           <Step
             n="03"
             icon={<Heart className="h-5 w-5" />}
-            title="Reveal your matches"
-            desc="Tap interested in secret. Mutuals unlock private chat."
+            title={t('landing.reveal_matches')}
+            desc={t('landing.reveal_desc')}
           />
         </div>
       </section>
@@ -185,16 +242,16 @@ function Landing() {
           <ModeCard
             icon={<MessageCircle className="h-5 w-5" />}
             tone="primary"
-            title="Chat Mode"
-            time="5 min per round"
-            desc="Words first. Trade messages, emoji and AI icebreakers. Low pressure, high spark."
+            title={t('landing.chat_mode')}
+            time={t('landing.chat_time')}
+            desc={t('landing.chat_desc')}
           />
           <ModeCard
             icon={<Video className="h-5 w-5" />}
             tone="cool"
-            title="Webcam Mode"
-            time="3 min per round"
-            desc="Eyes on. Quick face-to-face video rounds with mute, report, and a smooth round-end overlay."
+            title={t('landing.video_mode')}
+            time={t('landing.video_time')}
+            desc={t('landing.video_desc')}
           />
         </div>
       </section>
@@ -203,9 +260,9 @@ function Landing() {
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-secondary">
-            From the rounds
+            {t('landing.from_rounds')}
           </p>
-          <h2 className="mt-3 text-3xl font-semibold sm:text-5xl">People who actually met.</h2>
+          <h2 className="mt-3 text-3xl font-semibold sm:text-5xl">{t('landing.people_met')}</h2>
         </div>
         <div className="mt-12 grid gap-4 md:grid-cols-3">
           <Quote
@@ -232,22 +289,22 @@ function Landing() {
           />
           <Shield className="mx-auto h-6 w-6 text-secondary" />
           <h2 className="mt-4 text-3xl font-semibold sm:text-5xl">
-            Your next round starts in seconds.
+            {t('landing.cta_title')}
           </h2>
           <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
-            Verified profiles, instant exits, zero phone-number sharing. Just vibes.
+            {t('landing.cta_desc')}
           </p>
           <Link
             to="/dashboard"
             className="mt-8 inline-flex items-center gap-2 rounded-full gradient-primary px-8 py-4 font-semibold text-primary-foreground shadow-glow transition-transform hover:scale-105"
           >
-            Enter the lobby <ArrowRight className="h-4 w-4" />
+            {t('landing.enter_lobby_2')} <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </section>
 
       <footer className="border-t border-white/5 py-8 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} VibeRound. Made for real connections.
+        {t('app.footer').replace('{year}', new Date().getFullYear().toString())}
       </footer>
     </div>
   );
@@ -255,20 +312,21 @@ function Landing() {
 
 function StatCard({
   icon,
-  label,
+  labelKey,
   value,
   accent,
 }: {
   icon: React.ReactNode;
-  label: string;
+  labelKey: string;
   value: string;
   accent?: boolean;
 }) {
+  const { t } = useLanguage();
   return (
     <div className={`glass rounded-2xl p-4 ${accent ? "ring-glow" : ""}`}>
       <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
         {icon}
-        {label}
+        {t(labelKey)}
       </div>
       <div className="mt-2 font-display text-2xl font-semibold">{value}</div>
     </div>

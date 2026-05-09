@@ -9,15 +9,27 @@ import {
 } from "@tanstack/react-router";
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
+import { LanguageProvider, useLanguage } from "@/lib/language";
+
+function RootMeta() {
+  const { t } = useLanguage();
+  return {
+    title: t('app.title'),
+    description: "Realtime speed dating rounds. Match by chat or webcam. Meet someone in minutes.",
+    property: "og:title",
+    content: t('app.title'),
+  };
+}
 
 function NotFoundComponent() {
+  const { t } = useLanguage();
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="glass-strong max-w-md rounded-3xl p-10 text-center">
         <h1 className="text-7xl font-bold text-gradient">404</h1>
-        <p className="mt-3 text-muted-foreground">This round doesn't exist.</p>
+        <p className="mt-3 text-muted-foreground">{t('root.404')}</p>
         <Link to="/" className="mt-6 inline-flex rounded-full gradient-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow">
-          Back to home
+          {t('root.back_home')}
         </Link>
       </div>
     </div>
@@ -26,15 +38,16 @@ function NotFoundComponent() {
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
+  const { t } = useLanguage();
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="glass-strong max-w-md rounded-3xl p-10 text-center">
-        <h1 className="text-2xl font-semibold">Something glitched</h1>
+        <h1 className="text-2xl font-semibold">{t('root.error')}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
         <button
           onClick={() => { router.invalidate(); reset(); }}
           className="mt-6 inline-flex rounded-full gradient-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow"
-        >Try again</button>
+        >{t('root.try_again')}</button>
       </div>
     </div>
   );
@@ -45,9 +58,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "VibeRound — Live Speed Dating Rooms" },
+      { title: "Giogo — Live Speed Dating Rooms" },
       { name: "description", content: "Realtime speed dating rounds. Match by chat or webcam. Meet someone in minutes." },
-      { property: "og:title", content: "VibeRound — Live Speed Dating Rooms" },
+      { property: "og:title", content: "Giogo — Live Speed Dating Rooms" },
       { property: "og:description", content: "Realtime speed dating rounds. Match by chat or webcam." },
       { property: "og:type", content: "website" },
     ],
@@ -77,8 +90,10 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
-      <Toaster theme="dark" richColors position="top-center" />
+      <LanguageProvider>
+        <Outlet />
+        <Toaster theme="dark" richColors position="top-center" />
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }
