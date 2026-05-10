@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+
 export type AuthUser = {
   id: string;
   email: string;
@@ -7,64 +9,35 @@ export type AuthSession = {
   user: AuthUser | null;
 };
 
-const STORAGE_KEY = "fakeAuthUser";
-const listeners = new Set<(event: string, session: { session: AuthUser | null }) => void>();
-
-function getStoredUser(): AuthUser | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as AuthUser;
-  } catch {
-    return null;
-  }
-}
-
-function setStoredUser(user: AuthUser | null) {
-  if (typeof window === "undefined") return;
-  if (user) {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-  } else {
-    window.localStorage.removeItem(STORAGE_KEY);
-  }
-  notifyListeners(user);
-}
-
-function notifyListeners(user: AuthUser | null) {
-  listeners.forEach((listener) => {
-    try {
-      listener("SIGNED_IN", { session: user });
-    } catch {
-      // ignore
-    }
-  });
-}
-
-function createUser(email: string): AuthUser {
-  const normalized = email.trim().toLowerCase();
+function toAuthUser(user: { id: string; email?: string | null } | null) {
+  if (!user) return null;
   return {
-    id: `fake:${normalized}`,
-    email: normalized,
+    id: user.id,
+    email: user.email ?? "",
   };
+}
+
+function toAuthSession(session: { user: { id: string; email?: string | null } } | null) {
+  if (!session?.user) return { user: null };
+  return { user: toAuthUser(session.user) };
 }
 
 export const fakeAuth = {
   getSession: async () => {
-    return { data: { session: getStoredUser() ? { user: getStoredUser() } : null } };
+    const { data } = await supabase.auth.getSession();
+    return { data: { session: toAuthSession(data.session) } };
   },
   signInWithOtp: async ({ email }: { email: string; options?: unknown }) => {
-    const user = createUser(email);
-    setStoredUser(user);
-    return { data: { user: null, session: { user } }, error: null as Error | null };
+    return await supabase.auth.signInWithOtp({ email });
   },
   signOut: async () => {
-    setStoredUser(null);
-    return { error: null };
+    const { error } = await supabase.auth.signOut();
+    return { error };
   },
   onAuthStateChange: (callback: (event: string, session: { session: AuthUser | null }) => void) => {
-    listeners.add(callback);
-    callback("INITIAL_SESSION", { session: getStoredUser() });
-    return { data: { subscription: { unsubscribe: () => listeners.delete(callback) } } };
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      callback(event, { session: toAuthSession(session) });
+    });
+    return { data };
   },
 };

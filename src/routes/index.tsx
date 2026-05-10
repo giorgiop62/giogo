@@ -82,7 +82,7 @@ function Landing() {
       return;
     }
 
-    toast.success("Login fittizio effettuato", { description: "Hai effettuato l'accesso localmente." });
+    toast.success("Controlla la tua email", { description: "Abbiamo inviato un link di accesso. Apri la tua casella di posta per completare il login." });
   }
 
   return (
