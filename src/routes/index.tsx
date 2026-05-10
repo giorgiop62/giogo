@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import {
@@ -18,7 +18,12 @@ import { fakeAuth, type AuthUser } from "@/integrations/fakeAuth";
 import { toast } from "sonner";
 import { useLanguage } from "@/lib/language";
 
-export const Route = createFileRoute("/")({ component: Landing });
+export const Route = createFileRoute("/")({
+  beforeLoad: () => {
+    throw redirect({ to: "/login" });
+  },
+  component: Landing,
+});
 
 function useTicker(initial: number, range = 5, interval = 2200) {
   const [n, setN] = useState(initial);
