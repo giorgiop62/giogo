@@ -105,7 +105,7 @@ export function Nav() {
             </button>
           ) : (
             <Link
-              to="/"
+              to="/login"
               className="rounded-full gradient-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-glow transition-transform hover:scale-105"
             >
               {t('nav.login')}

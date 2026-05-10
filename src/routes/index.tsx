@@ -36,9 +36,6 @@ function Landing() {
   const online = useTicker(2438, 12);
   const rooms = useTicker(74, 4);
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [email, setEmail] = useState("");
-  const [authSending, setAuthSending] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
   const navigate = useNavigate();
   const { t } = useLanguage();
 
@@ -49,7 +46,6 @@ function Landing() {
       const { data } = await fakeAuth.getSession();
       if (!alive) return;
       setUser(data.session?.user ?? null);
-      setAuthReady(true);
     }
 
     loadSession();
@@ -67,22 +63,6 @@ function Landing() {
   async function signOut() {
     await fakeAuth.signOut();
     navigate({ to: "/" });
-  }
-
-  async function sendMagicLink() {
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) return;
-
-    setAuthSending(true);
-    const { error } = await fakeAuth.signInWithOtp({ email: trimmedEmail });
-    setAuthSending(false);
-
-    if (error) {
-      toast.error("Login non riuscito", { description: error?.message ?? "Errore durante il login." });
-      return;
-    }
-
-    toast.success("Controlla la tua email", { description: "Abbiamo inviato un link di accesso. Apri la tua casella di posta per completare il login." });
   }
 
   return (
@@ -130,25 +110,19 @@ function Landing() {
                 </button>
               </>
             ) : (
-              <div className="grid w-full gap-3 sm:grid-cols-[1fr_auto]">
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendMagicLink()}
-                  type="email"
-                  placeholder="email@example.com"
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none"
-                />
-                <button
-                  disabled={!authReady || authSending || !email.trim()}
-                  onClick={sendMagicLink}
-                  className="rounded-2xl gradient-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-glow disabled:opacity-40 disabled:shadow-none"
+              <div className="grid w-full gap-3 sm:grid-cols-2">
+                <Link
+                  to="/login"
+                  className="rounded-full gradient-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-glow text-center transition hover:scale-105"
                 >
-                  {authSending ? "Invio..." : "Entra"}
-                </button>
-                <p className="text-xs text-muted-foreground sm:col-span-2">
-                  Effettua il login con email fittizia per accedere all’app.
-                </p>
+                  {t('auth.login_button')}
+                </Link>
+                <Link
+                  to="/signup"
+                  className="rounded-full border border-white/10 bg-white/[0.04] px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-glow text-center transition hover:bg-white/[0.07]"
+                >
+                  {t('auth.signup_button')}
+                </Link>
               </div>
             )}
             <a

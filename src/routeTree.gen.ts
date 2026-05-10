@@ -9,15 +9,22 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as RoomRouteImport } from './routes/room'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as MatchesRouteImport } from './routes/matches'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CreateEventRouteImport } from './routes/create-event'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RoomRoute = RoomRouteImport.update({
   id: '/room',
   path: '/room',
@@ -31,6 +38,11 @@ const ProfileRoute = ProfileRouteImport.update({
 const MatchesRoute = MatchesRouteImport.update({
   id: '/matches',
   path: '/matches',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EventsRoute = EventsRouteImport.update({
@@ -64,9 +76,11 @@ export interface FileRoutesByFullPath {
   '/create-event': typeof CreateEventRoute
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
+  '/login': typeof LoginRoute
   '/matches': typeof MatchesRoute
   '/profile': typeof ProfileRoute
   '/room': typeof RoomRoute
+  '/signup': typeof SignupRoute
   '/auth/callback': typeof AuthCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -74,9 +88,11 @@ export interface FileRoutesByTo {
   '/create-event': typeof CreateEventRoute
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
+  '/login': typeof LoginRoute
   '/matches': typeof MatchesRoute
   '/profile': typeof ProfileRoute
   '/room': typeof RoomRoute
+  '/signup': typeof SignupRoute
   '/auth/callback': typeof AuthCallbackRoute
 }
 export interface FileRoutesById {
@@ -85,9 +101,11 @@ export interface FileRoutesById {
   '/create-event': typeof CreateEventRoute
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
+  '/login': typeof LoginRoute
   '/matches': typeof MatchesRoute
   '/profile': typeof ProfileRoute
   '/room': typeof RoomRoute
+  '/signup': typeof SignupRoute
   '/auth/callback': typeof AuthCallbackRoute
 }
 export interface FileRouteTypes {
@@ -97,9 +115,11 @@ export interface FileRouteTypes {
     | '/create-event'
     | '/dashboard'
     | '/events'
+    | '/login'
     | '/matches'
     | '/profile'
     | '/room'
+    | '/signup'
     | '/auth/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -107,9 +127,11 @@ export interface FileRouteTypes {
     | '/create-event'
     | '/dashboard'
     | '/events'
+    | '/login'
     | '/matches'
     | '/profile'
     | '/room'
+    | '/signup'
     | '/auth/callback'
   id:
     | '__root__'
@@ -117,9 +139,11 @@ export interface FileRouteTypes {
     | '/create-event'
     | '/dashboard'
     | '/events'
+    | '/login'
     | '/matches'
     | '/profile'
     | '/room'
+    | '/signup'
     | '/auth/callback'
   fileRoutesById: FileRoutesById
 }
@@ -128,14 +152,23 @@ export interface RootRouteChildren {
   CreateEventRoute: typeof CreateEventRoute
   DashboardRoute: typeof DashboardRoute
   EventsRoute: typeof EventsRoute
+  LoginRoute: typeof LoginRoute
   MatchesRoute: typeof MatchesRoute
   ProfileRoute: typeof ProfileRoute
   RoomRoute: typeof RoomRoute
+  SignupRoute: typeof SignupRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/room': {
       id: '/room'
       path: '/room'
@@ -155,6 +188,13 @@ declare module '@tanstack/react-router' {
       path: '/matches'
       fullPath: '/matches'
       preLoaderRoute: typeof MatchesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/events': {
@@ -200,9 +240,11 @@ const rootRouteChildren: RootRouteChildren = {
   CreateEventRoute: CreateEventRoute,
   DashboardRoute: DashboardRoute,
   EventsRoute: EventsRoute,
+  LoginRoute: LoginRoute,
   MatchesRoute: MatchesRoute,
   ProfileRoute: ProfileRoute,
   RoomRoute: RoomRoute,
+  SignupRoute: SignupRoute,
   AuthCallbackRoute: AuthCallbackRoute,
 }
 export const routeTree = rootRouteImport
