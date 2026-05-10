@@ -22,7 +22,6 @@ export const Route = createFileRoute("/")({
   beforeLoad: () => {
     throw redirect({ to: "/login" });
   },
-  component: Landing,
 });
 
 function useTicker(initial: number, range = 5, interval = 2200) {
