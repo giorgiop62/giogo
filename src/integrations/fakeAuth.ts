@@ -28,7 +28,12 @@ export const fakeAuth = {
     return { data: { session: toAuthSession(data.session) } };
   },
   signInWithOtp: async ({ email }: { email: string; options?: unknown }) => {
-    return await supabase.auth.signInWithOtp({ email });
+    return await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
   },
   signOut: async () => {
     const { error } = await supabase.auth.signOut();

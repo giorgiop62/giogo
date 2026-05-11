@@ -169,6 +169,12 @@ function CreateEventPage() {
   }, []);
 
   useEffect(() => {
+    if (authReady && !user) {
+      navigate({ to: "/login" });
+    }
+  }, [authReady, navigate, user]);
+
+  useEffect(() => {
     if (!user) {
       setProfile(DEFAULT_PROFILE);
       setNearby([]);

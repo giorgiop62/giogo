@@ -48,6 +48,8 @@ function SignupPage() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+    }, {
+      emailRedirectTo: `${window.location.origin}/auth/callback`,
     });
 
     setLoading(false);

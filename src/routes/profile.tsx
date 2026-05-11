@@ -111,6 +111,12 @@ function ProfilePage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate({ to: "/login" });
+    }
+  }, [loading, navigate, user]);
+
   async function saveProfile(nextProfile = profile) {
     if (!user) return;
 
@@ -139,6 +145,14 @@ function ProfilePage() {
       (longitude != null && !Number.isFinite(longitude))
     ) {
       toast.error("Controlla età e coordinate");
+      return;
+    }
+
+    const { data: authData } = await supabase.auth.getSession();
+    if (!authData.session?.user) {
+      setSaving(false);
+      toast.error("Devi effettuare il login prima di salvare il profilo");
+      navigate({ to: "/login" });
       return;
     }
 
