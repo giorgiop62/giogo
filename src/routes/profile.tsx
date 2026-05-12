@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import { Image, Loader2, LocateFixed, Save, UserRound } from "lucide-react";
 import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
-import { fakeAuth, type AuthUser } from "@/integrations/fakeAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getCurrentUser, requireAuth, type AuthUser } from "@/lib/auth";
 
-export const Route = createFileRoute("/profile")({ component: ProfilePage });
+export const Route = createFileRoute("/profile")({
+  beforeLoad: requireAuth,
+  component: ProfilePage,
+});
 
 type EditableProfile = {
   display_name: string;
@@ -61,8 +64,7 @@ function ProfilePage() {
     let alive = true;
 
     async function loadProfile() {
-      const { data: sessionData } = await fakeAuth.getSession();
-      const currentUser = sessionData.session?.user ?? null;
+      const currentUser = await getCurrentUser();
       if (!alive) return;
       setUser(currentUser);
 

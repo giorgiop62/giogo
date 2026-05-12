@@ -25,10 +25,13 @@ import {
 import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
 import { supabase } from "@/integrations/supabase/client";
-import { fakeAuth, type AuthUser } from "@/integrations/fakeAuth";
+import { getCurrentUser, onAuthUserChange, requireAuth, type AuthUser } from "@/lib/auth";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/create-event")({ component: CreateEventPage });
+export const Route = createFileRoute("/create-event")({
+  beforeLoad: requireAuth,
+  component: CreateEventPage,
+});
 
 const PRESET_THEMES = [
   { label: "Università di Firenze", icon: GraduationCap },
@@ -130,12 +133,7 @@ function CreateEventPage() {
     !!profile.profile_photo_url.trim() &&
     !!profile.matching_preferences.trim();
   const canSubmit =
-    !!finalTheme &&
-    minPlayers >= 4 &&
-    maxPlayers >= minPlayers &&
-    !!user &&
-    profileComplete &&
-    !!scheduledAt;
+    !!finalTheme && minPlayers >= 4 && maxPlayers >= minPlayers && !!user && !!scheduledAt;
 
   const filteredNearby = useMemo(() => {
     if (mode !== "custom") return nearby;
@@ -151,20 +149,20 @@ function CreateEventPage() {
     let alive = true;
 
     async function loadSession() {
-      const { data } = await fakeAuth.getSession();
+      const currentUser = await getCurrentUser();
       if (!alive) return;
-      setUser(data.session?.user ?? null);
+      setUser(currentUser);
       setAuthReady(true);
     }
 
     loadSession();
-    const { data: listener } = fakeAuth.onAuthStateChange((_event, session) => {
-      setUser(session.session ?? null);
+    const subscription = onAuthUserChange((currentUser) => {
+      setUser(currentUser);
     });
 
     return () => {
       alive = false;
-      listener.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -272,63 +270,78 @@ function CreateEventPage() {
   }
 
   async function submit() {
-    if (!canSubmit) return;
+    if (!user) {
+      navigate({ to: "/login" });
+      return;
+    }
+
+    if (!finalTheme) {
+      toast.error("Scegli un tema per il round");
+      return;
+    }
+
     if (!scheduledAt) {
       toast.error("Imposta data e orario dell'evento");
       return;
     }
 
-    if (!profileComplete) {
-      toast.error("Completa il profilo prima di creare un evento");
-      navigate({ to: "/profile" });
+    if (maxPlayers < minPlayers) {
+      toast.error("Il numero massimo di partecipanti deve essere maggiore del minimo");
       return;
     }
-
-    if (!user) return;
 
     setSubmitting(true);
-    const invitedProfiles = nearby.filter((p) => invited.includes(p.id));
-    const invitedNames = invitedProfiles.map((p) => p.display_name);
-    const { data: event, error } = await supabase
-      .from("events")
-      .insert({
-        event_kind: "local",
-        host_id: user.id,
-        host_name: profile.display_name.trim(),
-        theme: finalTheme,
-        mode,
-        play_mode: playMode,
-        min_players: minPlayers,
-        max_players: maxPlayers,
-        radius_km: radiusKm,
-        scheduled_at: scheduledAt,
-        status: "scheduled",
-        age_min: mode === "custom" ? ageMin : null,
-        age_max: mode === "custom" ? ageMax : null,
-        gender_filter: mode === "custom" ? genders : [],
-        invited_profile_ids: invitedProfiles.map((p) => p.id),
-        invited_names: invitedNames,
-        participant_count: 1,
-      })
-      .select("id")
-      .single();
+    try {
+      const invitedProfiles = nearby.filter((p) => invited.includes(p.id));
+      const invitedNames = invitedProfiles.map((p) => p.display_name);
+      const { data: event, error } = await supabase
+        .from("events")
+        .insert({
+          event_kind: "local",
+          host_id: user.id,
+          host_name: profile.display_name.trim() || user.email,
+          theme: finalTheme,
+          mode,
+          play_mode: playMode,
+          min_players: minPlayers,
+          max_players: maxPlayers,
+          radius_km: radiusKm,
+          scheduled_at: scheduledAt,
+          status: "scheduled",
+          age_min: mode === "custom" ? ageMin : null,
+          age_max: mode === "custom" ? ageMax : null,
+          gender_filter: mode === "custom" ? genders : [],
+          invited_profile_ids: invitedProfiles.map((p) => p.id),
+          invited_names: invitedNames,
+          participant_count: 1,
+        })
+        .select("id")
+        .single();
 
-    setSubmitting(false);
-    if (error) {
-      toast.error("Impossibile creare l'evento", { description: error.message });
-      return;
+      if (error) {
+        toast.error("Impossibile creare il round", { description: error.message });
+        return;
+      }
+
+      if (event) {
+        const { error: participantError } = await supabase.from("event_participants").upsert({
+          event_id: event.id,
+          profile_id: user.id,
+          status: "booked",
+        });
+
+        if (participantError) {
+          toast.error("Round creato, ma prenotazione host non salvata", {
+            description: participantError.message,
+          });
+        }
+      }
+
+      toast.success("Round creato con successo");
+      navigate({ to: "/events" });
+    } finally {
+      setSubmitting(false);
     }
-
-    if (event) {
-      await supabase.from("event_participants").upsert({
-        event_id: event.id,
-        profile_id: user.id,
-        status: "booked",
-      });
-    }
-
-    toast.success("Evento creato con successo");
-    navigate({ to: "/events" });
   }
 
   return (
@@ -353,7 +366,9 @@ function CreateEventPage() {
             </div>
           ) : !user ? (
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-sm text-muted-foreground">
-              <p className="mb-3 font-semibold">Effettua il login dalla home per creare un evento locale.</p>
+              <p className="mb-3 font-semibold">
+                Effettua il login dalla home per creare un evento locale.
+              </p>
               <Link
                 to="/"
                 className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold transition hover:bg-white/[0.07]"
@@ -365,10 +380,12 @@ function CreateEventPage() {
             <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-sm font-semibold">
-                  {profile.display_name || user.email} · {profileComplete ? "profilo completo" : "profilo da completare"}
+                  {profile.display_name || user.email} ·{" "}
+                  {profileComplete ? "profilo completo" : "profilo da completare"}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Il profilo contiene sesso, età, nazionalità, lingue, interessi, foto e preferenze di matching.
+                  Il profilo contiene sesso, età, nazionalità, lingue, interessi, foto e preferenze
+                  di matching.
                 </p>
               </div>
               <Link
@@ -662,11 +679,11 @@ function CreateEventPage() {
             </div>
           </div>
           <button
-            disabled={!canSubmit || submitting}
+            disabled={submitting}
             onClick={submit}
             className="mt-5 flex w-full items-center justify-center gap-2 rounded-full gradient-primary py-4 font-semibold text-primary-foreground shadow-glow transition disabled:opacity-40 disabled:shadow-none"
           >
-            {submitting ? "Creazione…" : "Crea evento"}
+            {submitting ? "Creazione..." : "Crea Round"}
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>

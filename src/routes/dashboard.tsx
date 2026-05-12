@@ -15,8 +15,12 @@ import {
 } from "lucide-react";
 import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
+import { requireAuth } from "@/lib/auth";
 
-export const Route = createFileRoute("/dashboard")({ component: Dashboard });
+export const Route = createFileRoute("/dashboard")({
+  beforeLoad: requireAuth,
+  component: Dashboard,
+});
 
 type Mode = "chat" | "webcam";
 type SessionKind = "global" | "local";

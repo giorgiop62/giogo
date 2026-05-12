@@ -1,14 +1,17 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { ArrowLeft, Lock, Mail, Loader2 } from "lucide-react";
-import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLanguage } from "@/lib/language";
+import { redirectIfAuthenticated } from "@/lib/auth";
 
-export const Route = createFileRoute("/signup")({ component: SignupPage });
+export const Route = createFileRoute("/signup")({
+  beforeLoad: redirectIfAuthenticated,
+  component: SignupPage,
+});
 
 function SignupPage() {
   const navigate = useNavigate();
@@ -19,23 +22,6 @@ function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-
-    async function checkSession() {
-      const { data } = await supabase.auth.getSession();
-      if (!alive) return;
-      if (data.session?.user) {
-        navigate({ to: "/dashboard" });
-      }
-    }
-
-    checkSession();
-    return () => {
-      alive = false;
-    };
-  }, [navigate]);
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (password !== confirmPassword) {
@@ -45,12 +31,15 @@ function SignupPage() {
 
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    }, {
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
-    });
+    const { data, error } = await supabase.auth.signUp(
+      {
+        email,
+        password,
+      },
+      {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    );
 
     setLoading(false);
 
@@ -72,7 +61,6 @@ function SignupPage() {
   return (
     <div className="relative min-h-screen">
       <FloatingBackground />
-      <Nav />
 
       <main className="mx-auto max-w-3xl px-4 pb-24 pt-24 sm:px-6">
         <motion.div
@@ -82,14 +70,16 @@ function SignupPage() {
         >
           <div className="mb-8 flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-widest text-primary">{t("auth.signup_title")}</p>
+              <p className="text-xs uppercase tracking-widest text-primary">
+                {t("auth.signup_title")}
+              </p>
               <h1 className="mt-3 text-3xl font-semibold">{t("auth.signup_title")}</h1>
             </div>
             <Link
-              to="/"
+              to="/login"
               className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
             >
-              <ArrowLeft className="h-4 w-4" /> Torna indietro
+              <ArrowLeft className="h-4 w-4" /> Login
             </Link>
           </div>
 
@@ -162,7 +152,10 @@ function SignupPage() {
           ) : null}
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            {t("auth.have_account")} <Link to="/login" className="font-semibold text-primary hover:text-primary/80">{t("auth.login_button")}</Link>
+            {t("auth.have_account")}{" "}
+            <Link to="/login" className="font-semibold text-primary hover:text-primary/80">
+              {t("auth.login_button")}
+            </Link>
           </p>
         </motion.div>
       </main>

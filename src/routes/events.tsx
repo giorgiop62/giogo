@@ -4,17 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, CheckCircle2, Loader2, Plus, Users } from "lucide-react";
 import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
-import { fakeAuth, type AuthUser } from "@/integrations/fakeAuth";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { getCurrentUser, requireAuth, type AuthUser } from "@/lib/auth";
 
-export const Route = createFileRoute("/events")({ component: EventsPage });
+export const Route = createFileRoute("/events")({
+  beforeLoad: requireAuth,
+  component: EventsPage,
+});
 
 type EventRow = Tables<"events">;
 
 function EventsPage() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [created, setCreated] = useState<EventRow[]>([]);
   const [booked, setBooked] = useState<EventRow[]>([]);
@@ -23,8 +26,7 @@ function EventsPage() {
     let alive = true;
 
     async function load() {
-      const { data: sessionData } = await fakeAuth.getSession();
-      const currentUser = sessionData.session?.user ?? null;
+      const currentUser = await getCurrentUser();
       if (!alive) return;
       setUser(currentUser);
 

@@ -1,14 +1,17 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { ArrowLeft, Lock, Mail, Loader2 } from "lucide-react";
-import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLanguage } from "@/lib/language";
+import { redirectIfAuthenticated } from "@/lib/auth";
 
-export const Route = createFileRoute("/login")({ component: LoginPage });
+export const Route = createFileRoute("/login")({
+  beforeLoad: redirectIfAuthenticated,
+  component: LoginPage,
+});
 
 function LoginPage() {
   const navigate = useNavigate();
@@ -16,23 +19,7 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-
-    async function checkSession() {
-      const { data } = await supabase.auth.getSession();
-      if (!alive) return;
-      if (data.session?.user) {
-        navigate({ to: "/dashboard" });
-      }
-    }
-
-    checkSession();
-    return () => {
-      alive = false;
-    };
-  }, [navigate]);
+  const [resetLoading, setResetLoading] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,10 +47,29 @@ function LoginPage() {
     navigate({ to: "/dashboard" });
   }
 
+  async function handlePasswordReset() {
+    if (!email.trim()) {
+      toast.error("Inserisci la tua email per recuperare la password");
+      return;
+    }
+
+    setResetLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    setResetLoading(false);
+
+    if (error) {
+      toast.error("Impossibile inviare il recupero password", { description: error.message });
+      return;
+    }
+
+    toast.success("Email di recupero password inviata");
+  }
+
   return (
     <div className="relative min-h-screen">
       <FloatingBackground />
-      <Nav />
 
       <main className="mx-auto max-w-3xl px-4 pb-24 pt-24 sm:px-6">
         <motion.div
@@ -73,14 +79,16 @@ function LoginPage() {
         >
           <div className="mb-8 flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-widest text-primary">{t("auth.login_title")}</p>
+              <p className="text-xs uppercase tracking-widest text-primary">
+                {t("auth.login_title")}
+              </p>
               <h1 className="mt-3 text-3xl font-semibold">{t("auth.login_title")}</h1>
             </div>
             <Link
-              to="/"
+              to="/signup"
               className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
             >
-              <ArrowLeft className="h-4 w-4" /> Torna indietro
+              <ArrowLeft className="h-4 w-4" /> Registrazione
             </Link>
           </div>
 
@@ -117,7 +125,7 @@ function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading || !email.trim() || !password.trim()}
+              disabled={loading || resetLoading || !email.trim() || !password.trim()}
               className="inline-flex w-full items-center justify-center gap-2 rounded-2xl gradient-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-glow transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (
@@ -129,10 +137,22 @@ function LoginPage() {
                 t("auth.login_button")
               )}
             </button>
+
+            <button
+              type="button"
+              onClick={handlePasswordReset}
+              disabled={loading || resetLoading}
+              className="w-full text-center text-sm font-semibold text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {resetLoading ? "Invio email..." : "Hai dimenticato la password?"}
+            </button>
           </form>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            {t("auth.no_account")} <Link to="/signup" className="font-semibold text-primary hover:text-primary/80">{t("auth.signup_button")}</Link>
+            {t("auth.no_account")}{" "}
+            <Link to="/signup" className="font-semibold text-primary hover:text-primary/80">
+              {t("auth.signup_button")}
+            </Link>
           </p>
         </motion.div>
       </main>

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
+import { requireAuth } from "@/lib/auth";
 
 type Search = {
   mode: "chat" | "webcam";
@@ -27,6 +28,7 @@ type Search = {
 };
 
 export const Route = createFileRoute("/room")({
+  beforeLoad: requireAuth,
   validateSearch: (s: Record<string, unknown>): Search => ({
     mode: s.mode === "webcam" ? "webcam" : "chat",
     kind: s.kind === "local" ? "local" : "global",
@@ -137,10 +139,7 @@ function normalizePair(a: string, b: string) {
   return a < b ? `${a}-${b}` : `${b}-${a}`;
 }
 
-function pairRound(
-  remaining: string[],
-  usedPairs: Set<string>,
-): [string, string][] | null {
+function pairRound(remaining: string[], usedPairs: Set<string>): [string, string][] | null {
   if (remaining.length === 0) return [];
   const [first, ...rest] = remaining;
 
@@ -278,20 +277,23 @@ function Room() {
   const currentPlan = schedule[0];
   const currentUserId = "u0";
   const activeParticipants = participants.filter((p) => p.status !== "removed");
-  const currentPartnerId = currentPlan?.pairs
-    .find((pair) => pair.includes(currentUserId))
-    ?.find((id) => id !== currentUserId) ?? null;
+  const currentPartnerId =
+    currentPlan?.pairs
+      .find((pair) => pair.includes(currentUserId))
+      ?.find((id) => id !== currentUserId) ?? null;
   const currentPartner = participants.find((p) => p.id === currentPartnerId) ?? null;
   const currentUserWaiting = currentPlan?.waitingId === currentUserId;
   const pendingParticipant = pendingDisconnectId
     ? participants.find((p) => p.id === pendingDisconnectId)
     : null;
-  const isCurrentPartnerDisconnected = Boolean(currentPartnerId && pendingDisconnectId === currentPartnerId);
+  const isCurrentPartnerDisconnected = Boolean(
+    currentPartnerId && pendingDisconnectId === currentPartnerId,
+  );
   const effectiveWaitingMessage = waitingMessage
     ? waitingMessage
     : currentUserWaiting
-    ? "Attendi il prossimo abbinamento..."
-    : null;
+      ? "Attendi il prossimo abbinamento..."
+      : null;
 
   function recordRoundCompletion(roundPlan: RoundPlan) {
     setUsedPairs((prev) => {
@@ -310,10 +312,10 @@ function Room() {
   function rebuildSchedule(currentParticipants: Participant[]) {
     const active = currentParticipants.filter((p) => p.status === "active");
     const remainingRounds = TOTAL_ROUNDS - (round - 1);
-    const nextByeCounts = Object.fromEntries(active.map((participant) => [participant.id, byeCounts[participant.id] ?? 0]));
-    setSchedule(
-      generateSchedule(active, remainingRounds, usedPairs, nextByeCounts),
+    const nextByeCounts = Object.fromEntries(
+      active.map((participant) => [participant.id, byeCounts[participant.id] ?? 0]),
     );
+    setSchedule(generateSchedule(active, remainingRounds, usedPairs, nextByeCounts));
   }
 
   function advanceRound() {
@@ -357,7 +359,14 @@ function Room() {
   }, [time, showVote, currentPartner, currentUserWaiting, isCurrentPartnerDisconnected]);
 
   useEffect(() => {
-    if (mode !== "chat" || showVote || !currentPartner || isCurrentPartnerDisconnected || currentUserWaiting) return;
+    if (
+      mode !== "chat" ||
+      showVote ||
+      !currentPartner ||
+      isCurrentPartnerDisconnected ||
+      currentUserWaiting
+    )
+      return;
     setMessages([{ from: "them", text: SCRIPTS[0] }]);
     let i = 1;
     const id = setInterval(() => {
@@ -375,7 +384,9 @@ function Room() {
   useEffect(() => {
     if (round !== 2 || hadDisconnect || pendingDisconnectId) return;
     const leaveTimeout = setTimeout(() => {
-      const candidates = participants.filter((p) => p.status === "active" && p.id !== currentUserId);
+      const candidates = participants.filter(
+        (p) => p.status === "active" && p.id !== currentUserId,
+      );
       if (!candidates.length) return;
       const target = candidates[Math.floor(Math.random() * candidates.length)];
       setParticipants((prev) =>
@@ -508,7 +519,9 @@ function Room() {
           {mode === "webcam" ? (
             currentPartner && !isCurrentPartnerDisconnected ? (
               <div className="glass-strong relative aspect-video w-full overflow-hidden rounded-3xl">
-                <div className={`absolute inset-0 bg-gradient-to-br ${currentPartner.color} opacity-80`} />
+                <div
+                  className={`absolute inset-0 bg-gradient-to-br ${currentPartner.color} opacity-80`}
+                />
                 <div className="absolute inset-0 grid place-items-center text-7xl font-display font-semibold text-white/90">
                   {currentPartner.name[0]}
                 </div>
@@ -528,7 +541,8 @@ function Room() {
                   {currentUserWaiting ? "Sei in attesa" : "Nessun abbinamento attivo"}
                 </h2>
                 <p className="mt-3 text-sm text-muted-foreground">
-                  {effectiveWaitingMessage ?? "Il sistema sta ricalcolando gli abbinamenti per il prossimo round."}
+                  {effectiveWaitingMessage ??
+                    "Il sistema sta ricalcolando gli abbinamenti per il prossimo round."}
                 </p>
               </div>
             )
@@ -589,7 +603,9 @@ function Room() {
           <div className="glass-strong rounded-3xl p-6">
             {currentPartner ? (
               <>
-                <div className={`mb-4 h-32 w-full rounded-2xl bg-gradient-to-br ${currentPartner.color}`} />
+                <div
+                  className={`mb-4 h-32 w-full rounded-2xl bg-gradient-to-br ${currentPartner.color}`}
+                />
                 <div className="flex items-baseline justify-between">
                   <h3 className="text-xl font-semibold">
                     {currentPartner.name}, {currentPartner.age}
@@ -610,7 +626,9 @@ function Room() {
                   <div className="flex items-center gap-2 text-xs text-secondary">
                     <Sparkles className="h-3.5 w-3.5" /> Icebreaker
                   </div>
-                  <p className="mt-1 text-sm">"What's the most spontaneous thing you did this year?"</p>
+                  <p className="mt-1 text-sm">
+                    "What's the most spontaneous thing you did this year?"
+                  </p>
                 </div>
               </>
             ) : (
@@ -625,7 +643,9 @@ function Room() {
 
             <div className="mt-6 border-t border-white/5 pt-4">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm uppercase tracking-wide text-muted-foreground">Partecipanti</h4>
+                <h4 className="text-sm uppercase tracking-wide text-muted-foreground">
+                  Partecipanti
+                </h4>
                 <span className="text-xs text-secondary">{activeParticipants.length} attivi</span>
               </div>
               <div className="mt-3 grid gap-2">
@@ -636,22 +656,24 @@ function Room() {
                       participant.status === "removed"
                         ? "border-red-500/20 bg-red-500/5 text-red-300"
                         : participant.status === "pending"
-                        ? "border-amber-500/20 bg-amber-500/5 text-amber-200"
-                        : "border-white/10 bg-white/5 text-white"
+                          ? "border-amber-500/20 bg-amber-500/5 text-amber-200"
+                          : "border-white/10 bg-white/5 text-white"
                     }`}
                   >
                     <div>
-                      <div className="font-medium">{participant.id === currentUserId ? "Tu" : participant.name}</div>
+                      <div className="font-medium">
+                        {participant.id === currentUserId ? "Tu" : participant.name}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {participant.id === currentUserId
                           ? "sei tu"
                           : participant.status === "pending"
-                          ? "riconnessione..."
-                          : participant.status === "removed"
-                          ? "rimosso"
-                          : currentPlan?.waitingId === participant.id
-                          ? "in attesa"
-                          : "in gioco"}
+                            ? "riconnessione..."
+                            : participant.status === "removed"
+                              ? "rimosso"
+                              : currentPlan?.waitingId === participant.id
+                                ? "in attesa"
+                                : "in gioco"}
                       </div>
                     </div>
                     {participant.status !== "removed" && (
@@ -700,7 +722,9 @@ function Room() {
               <p className="text-xs uppercase tracking-widest text-muted-foreground">
                 Round {round} ended
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">What about {currentPartner?.name ?? "il partecipante"}?</h2>
+              <h2 className="mt-2 text-2xl font-semibold">
+                What about {currentPartner?.name ?? "il partecipante"}?
+              </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Your answer stays secret until results.
               </p>

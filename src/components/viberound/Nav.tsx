@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { Heart, LogOut, Languages } from "lucide-react";
+import { LogOut, Languages } from "lucide-react";
 import { useEffect, useState } from "react";
-import { fakeAuth, type AuthUser } from "@/integrations/fakeAuth";
+import { getCurrentUser, onAuthUserChange, type AuthUser } from "@/lib/auth";
 import { useLanguage } from "@/lib/language";
+import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
 
 export function Nav() {
@@ -12,22 +13,23 @@ export function Nav() {
   useEffect(() => {
     let alive = true;
 
-    fakeAuth.getSession().then(({ data }) => {
-      if (alive) setUser(data.session?.user ?? null);
+    getCurrentUser().then((currentUser) => {
+      if (alive) setUser(currentUser);
     });
 
-    const { data } = fakeAuth.onAuthStateChange((_event, session) => {
-      setUser(session.session ?? null);
+    const subscription = onAuthUserChange((currentUser) => {
+      setUser(currentUser);
     });
 
     return () => {
       alive = false;
-      data.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
   async function signOut() {
-    await fakeAuth.signOut();
+    await supabase.auth.signOut();
+    window.location.assign("/login");
   }
 
   const mainLinks = (
@@ -38,35 +40,35 @@ export function Nav() {
         activeOptions={{ exact: true }}
         activeProps={{ className: "rounded-full px-4 py-1.5 text-foreground bg-white/5" }}
       >
-        {t('nav.home')}
+        {t("nav.home")}
       </Link>
       <Link
         to="/dashboard"
         className="rounded-full px-4 py-1.5 text-muted-foreground hover:text-foreground"
         activeProps={{ className: "rounded-full px-4 py-1.5 text-foreground bg-white/5" }}
       >
-        {t('nav.play')}
+        {t("nav.play")}
       </Link>
       <Link
         to="/events"
         className="rounded-full px-4 py-1.5 text-muted-foreground hover:text-foreground"
         activeProps={{ className: "rounded-full px-4 py-1.5 text-foreground bg-white/5" }}
       >
-        {t('nav.events')}
+        {t("nav.events")}
       </Link>
       <Link
         to="/profile"
         className="rounded-full px-4 py-1.5 text-muted-foreground hover:text-foreground"
         activeProps={{ className: "rounded-full px-4 py-1.5 text-foreground bg-white/5" }}
       >
-        {t('nav.profile')}
+        {t("nav.profile")}
       </Link>
       <Link
         to="/matches"
         className="rounded-full px-4 py-1.5 text-muted-foreground hover:text-foreground"
         activeProps={{ className: "rounded-full px-4 py-1.5 text-foreground bg-white/5" }}
       >
-        {t('nav.matches')}
+        {t("nav.matches")}
       </Link>
     </>
   );
@@ -76,39 +78,42 @@ export function Nav() {
       <div className="mx-auto mt-3 flex max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link to="/" className="glass flex items-center gap-2 rounded-full px-4 py-2">
           <div className="grid h-7 w-7 place-items-center">
-
             <img src={logo} alt="Logo" className="h-7 w-7 object-contain" />
-
           </div>
-          <span className="font-display text-lg font-semibold tracking-tight">{t('app.name')}</span>
+          <span className="font-display text-lg font-semibold tracking-tight">{t("app.name")}</span>
         </Link>
         <nav className="glass hidden items-center gap-1 rounded-full p-1 text-sm md:flex">
           {mainLinks}
         </nav>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setLanguage(language === 'it' ? 'en' : 'it')}
+            onClick={() => setLanguage(language === "it" ? "en" : "it")}
             className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:bg-white/[0.07]"
-            title={t('change_language')}
+            title={t("change_language")}
           >
             <Languages className="h-4 w-4 text-muted-foreground" />
-            {language === 'it' ? 'EN' : 'IT'}
+            {language === "it" ? "EN" : "IT"}
           </button>
           {user ? (
-            <button
-              onClick={signOut}
-              className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:bg-white/[0.07]"
-              title={t('nav.logout')}
-            >
-              {t('nav.logout')}
-              <LogOut className="h-4 w-4 text-muted-foreground" />
-            </button>
+            <>
+              <span className="hidden max-w-[220px] truncate rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-muted-foreground sm:inline">
+                {user.email}
+              </span>
+              <button
+                onClick={signOut}
+                className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:bg-white/[0.07]"
+                title={t("nav.logout")}
+              >
+                {t("nav.logout")}
+                <LogOut className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </>
           ) : (
             <Link
               to="/login"
               className="rounded-full gradient-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-glow transition-transform hover:scale-105"
             >
-              {t('nav.login')}
+              {t("nav.login")}
             </Link>
           )}
         </div>
