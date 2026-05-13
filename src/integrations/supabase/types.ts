@@ -114,6 +114,7 @@ export type Database = {
         Row: {
           age: number | null;
           avatar_color: string;
+          bio: string | null;
           city: string | null;
           display_name: string;
           gender: string | null;
@@ -124,6 +125,7 @@ export type Database = {
           matching_preferences: Json;
           nationality: string | null;
           preferred_language: string | null;
+          preferred_mode: string | null;
           profile_photo_url: string | null;
           spoken_languages: string[];
           updated_at: string;
@@ -131,6 +133,7 @@ export type Database = {
         Insert: {
           age?: number | null;
           avatar_color?: string;
+          bio?: string | null;
           city?: string | null;
           display_name?: string;
           gender?: string | null;
@@ -141,6 +144,7 @@ export type Database = {
           matching_preferences?: Json;
           nationality?: string | null;
           preferred_language?: string | null;
+          preferred_mode?: string | null;
           profile_photo_url?: string | null;
           spoken_languages?: string[];
           updated_at?: string;
@@ -148,6 +152,7 @@ export type Database = {
         Update: {
           age?: number | null;
           avatar_color?: string;
+          bio?: string | null;
           city?: string | null;
           display_name?: string;
           gender?: string | null;
@@ -158,6 +163,7 @@ export type Database = {
           matching_preferences?: Json;
           nationality?: string | null;
           preferred_language?: string | null;
+          preferred_mode?: string | null;
           profile_photo_url?: string | null;
           spoken_languages?: string[];
           updated_at?: string;
