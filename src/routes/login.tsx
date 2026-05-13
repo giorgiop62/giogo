@@ -85,10 +85,10 @@ function LoginPage() {
               <h1 className="mt-3 text-3xl font-semibold">{t("auth.login_title")}</h1>
             </div>
             <Link
-              to="/signup"
+              to="/register"
               className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
             >
-              <ArrowLeft className="h-4 w-4" /> Registrazione
+              <ArrowLeft className="h-4 w-4" /> {t("auth.signup_title")}
             </Link>
           </div>
 
@@ -144,13 +144,13 @@ function LoginPage() {
               disabled={loading || resetLoading}
               className="w-full text-center text-sm font-semibold text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {resetLoading ? "Invio email..." : "Hai dimenticato la password?"}
+              {resetLoading ? t("common.loading") : t("auth.forgot")}
             </button>
           </form>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
             {t("auth.no_account")}{" "}
-            <Link to="/signup" className="font-semibold text-primary hover:text-primary/80">
+            <Link to="/register" className="font-semibold text-primary hover:text-primary/80">
               {t("auth.signup_button")}
             </Link>
           </p>

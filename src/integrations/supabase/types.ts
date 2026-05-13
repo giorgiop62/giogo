@@ -20,6 +20,8 @@ export type Database = {
           id: string;
           invited_profile_ids: string[];
           invited_names: string[];
+          latitude: number | null;
+          longitude: number | null;
           max_players: number;
           min_players: number;
           mode: string;
@@ -41,6 +43,8 @@ export type Database = {
           id?: string;
           invited_profile_ids?: string[];
           invited_names?: string[];
+          latitude?: number | null;
+          longitude?: number | null;
           max_players?: number;
           min_players?: number;
           mode: string;
@@ -62,6 +66,8 @@ export type Database = {
           id?: string;
           invited_profile_ids?: string[];
           invited_names?: string[];
+          latitude?: number | null;
+          longitude?: number | null;
           max_players?: number;
           min_players?: number;
           mode?: string;
@@ -71,6 +77,105 @@ export type Database = {
           scheduled_at?: string | null;
           status?: string;
           theme?: string;
+        };
+        Relationships: [];
+      };
+      match_requests: {
+        Row: {
+          created_at: string;
+          requested_id: string;
+          requester_id: string;
+          source: string;
+        };
+        Insert: {
+          created_at?: string;
+          requested_id: string;
+          requester_id: string;
+          source?: string;
+        };
+        Update: {
+          created_at?: string;
+          requested_id?: string;
+          requester_id?: string;
+          source?: string;
+        };
+        Relationships: [];
+      };
+      matches: {
+        Row: {
+          created_at: string;
+          id: string;
+          user_a: string;
+          user_b: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          user_a: string;
+          user_b: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          user_a?: string;
+          user_b?: string;
+        };
+        Relationships: [];
+      };
+      chat_messages: {
+        Row: {
+          body: string;
+          created_at: string;
+          id: string;
+          match_id: string;
+          sender_id: string;
+        };
+        Insert: {
+          body: string;
+          created_at?: string;
+          id?: string;
+          match_id: string;
+          sender_id: string;
+        };
+        Update: {
+          body?: string;
+          created_at?: string;
+          id?: string;
+          match_id?: string;
+          sender_id?: string;
+        };
+        Relationships: [];
+      };
+      voice_sessions: {
+        Row: {
+          caller_id: string;
+          created_at: string;
+          ended_at: string | null;
+          id: string;
+          match_id: string | null;
+          receiver_id: string;
+          started_at: string | null;
+          status: string;
+        };
+        Insert: {
+          caller_id: string;
+          created_at?: string;
+          ended_at?: string | null;
+          id?: string;
+          match_id?: string | null;
+          receiver_id: string;
+          started_at?: string | null;
+          status?: string;
+        };
+        Update: {
+          caller_id?: string;
+          created_at?: string;
+          ended_at?: string | null;
+          id?: string;
+          match_id?: string | null;
+          receiver_id?: string;
+          started_at?: string | null;
+          status?: string;
         };
         Relationships: [];
       };
@@ -118,14 +223,20 @@ export type Database = {
           city: string | null;
           display_name: string;
           gender: string | null;
+          hobbies: string[];
           id: string;
           interests: string[];
           latitude: number | null;
+          looking_for: string | null;
           longitude: number | null;
           matching_preferences: Json;
           nationality: string | null;
           preferred_language: string | null;
           preferred_mode: string | null;
+          prompt_agree: string | null;
+          prompt_green_flag: string | null;
+          prompt_love: string | null;
+          prompt_spontaneous: string | null;
           profile_photo_url: string | null;
           spoken_languages: string[];
           updated_at: string;
@@ -137,14 +248,20 @@ export type Database = {
           city?: string | null;
           display_name?: string;
           gender?: string | null;
+          hobbies?: string[];
           id: string;
           interests?: string[];
           latitude?: number | null;
+          looking_for?: string | null;
           longitude?: number | null;
           matching_preferences?: Json;
           nationality?: string | null;
           preferred_language?: string | null;
           preferred_mode?: string | null;
+          prompt_agree?: string | null;
+          prompt_green_flag?: string | null;
+          prompt_love?: string | null;
+          prompt_spontaneous?: string | null;
           profile_photo_url?: string | null;
           spoken_languages?: string[];
           updated_at?: string;
@@ -156,14 +273,20 @@ export type Database = {
           city?: string | null;
           display_name?: string;
           gender?: string | null;
+          hobbies?: string[];
           id?: string;
           interests?: string[];
           latitude?: number | null;
+          looking_for?: string | null;
           longitude?: number | null;
           matching_preferences?: Json;
           nationality?: string | null;
           preferred_language?: string | null;
           preferred_mode?: string | null;
+          prompt_agree?: string | null;
+          prompt_green_flag?: string | null;
+          prompt_love?: string | null;
+          prompt_spontaneous?: string | null;
           profile_photo_url?: string | null;
           spoken_languages?: string[];
           updated_at?: string;
@@ -191,6 +314,7 @@ export type Database = {
           id: string;
           latitude: number | null;
           longitude: number | null;
+          profile_photo_url: string | null;
         }[];
       };
     };

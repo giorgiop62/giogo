@@ -1,49 +1,39 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  Sparkles,
-  Shuffle,
-  Settings2,
-  MapPin,
-  Users,
-  MessageCircle,
-  Video,
-  Check,
-  Plus,
-  ChevronRight,
-  GraduationCap,
-  Rainbow,
-  Wine,
-  Music2,
-  Plane,
-  Dumbbell,
-  Loader2,
-  LogIn,
   CalendarClock,
+  Check,
+  Dumbbell,
+  GraduationCap,
+  Headphones,
+  Loader2,
+  MapPin,
+  MessageCircle,
+  Mic,
+  Plus,
+  Rainbow,
+  Shuffle,
+  Sparkles,
+  Target,
+  Users,
+  Wine,
 } from "lucide-react";
 import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
 import { supabase } from "@/integrations/supabase/client";
-import { getCurrentUser, onAuthUserChange, requireAuth, type AuthUser } from "@/lib/auth";
+import { getCurrentUser, requireAuth, type AuthUser } from "@/lib/auth";
+import { getBrowserPosition, saveUserLocation } from "@/lib/geo";
 import { toast } from "sonner";
+import { useLanguage } from "@/lib/language";
 
 export const Route = createFileRoute("/create-event")({
   beforeLoad: requireAuth,
   component: CreateEventPage,
 });
 
-const PRESET_THEMES = [
-  { label: "Università di Firenze", icon: GraduationCap },
-  { label: "LGBTQ+ Friendly", icon: Rainbow },
-  { label: "After-work spritz", icon: Wine },
-  { label: "Music lovers", icon: Music2 },
-  { label: "Travelers", icon: Plane },
-  { label: "Fitness & Wellness", icon: Dumbbell },
-];
-
-const GENDERS = ["Donna", "Uomo", "Non-binary", "Tutti"] as const;
-
+type PlayMode = "chat" | "voice";
+type MatchMode = "random" | "custom";
 type NearbyProfile = {
   id: string;
   display_name: string;
@@ -52,296 +42,193 @@ type NearbyProfile = {
   city: string | null;
   avatar_color: string;
   distance_km: number;
+  profile_photo_url?: string | null;
 };
 
-type EditableProfile = {
-  display_name: string;
-  age: string;
-  gender: string;
-  city: string;
-  latitude: string;
-  longitude: string;
-  nationality: string;
-  spoken_languages: string;
-  preferred_language: string;
-  interests: string;
-  profile_photo_url: string;
-  matching_preferences: string;
-  avatar_color: string;
-};
+const PRESET_THEMES = [
+  { label: "Università di Firenze", icon: GraduationCap },
+  { label: "LGBTQ+ Friendly", icon: Rainbow },
+  { label: "After-work spritz", icon: Wine },
+  { label: "Music lovers", icon: Headphones },
+  { label: "Travelers", icon: MapPin },
+  { label: "Fitness & Wellness", icon: Dumbbell },
+];
 
-const DEFAULT_PROFILE: EditableProfile = {
-  display_name: "",
-  age: "",
-  gender: "",
-  city: "",
-  latitude: "",
-  longitude: "",
-  nationality: "",
-  spoken_languages: "",
-  preferred_language: "",
-  interests: "",
-  profile_photo_url: "",
-  matching_preferences: "",
-  avatar_color: "from-rose-500 to-pink-500",
-};
-
-function splitList(value: string) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
+const GENDERS = ["Donna", "Uomo", "Non-binary", "Tutti"] as const;
 
 function CreateEventPage() {
   const navigate = useNavigate();
-
-  const [theme, setTheme] = useState<string>("");
+  const { t } = useLanguage();
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [hostName, setHostName] = useState("");
+  const [theme, setTheme] = useState("");
   const [customTheme, setCustomTheme] = useState("");
-  const [mode, setMode] = useState<"random" | "custom">("random");
-  const [playMode, setPlayMode] = useState<"chat" | "webcam">("chat");
-  const [minPlayers, setMinPlayers] = useState(4);
-  const [maxPlayers, setMaxPlayers] = useState(20);
+  const [playMode, setPlayMode] = useState<PlayMode>("chat");
+  const [matchMode, setMatchMode] = useState<MatchMode>("random");
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
-  const [radiusKm, setRadiusKm] = useState(50);
+  const [minPlayers, setMinPlayers] = useState(4);
+  const [maxPlayers, setMaxPlayers] = useState(12);
   const [ageMin, setAgeMin] = useState(21);
   const [ageMax, setAgeMax] = useState(35);
   const [genders, setGenders] = useState<string[]>(["Tutti"]);
   const [invited, setInvited] = useState<string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [profile, setProfile] = useState<EditableProfile>(DEFAULT_PROFILE);
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
   const [nearby, setNearby] = useState<NearbyProfile[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const finalTheme = customTheme.trim() || theme;
-  const hasLocation = !!profile.latitude && !!profile.longitude;
   const scheduledAt =
     scheduledDate && scheduledTime
       ? new Date(`${scheduledDate}T${scheduledTime}`).toISOString()
       : null;
-  const profileComplete =
-    !!profile.display_name.trim() &&
-    !!profile.gender &&
-    !!profile.age &&
-    !!profile.nationality.trim() &&
-    splitList(profile.spoken_languages).length > 0 &&
-    !!profile.preferred_language.trim() &&
-    splitList(profile.interests).length > 0 &&
-    !!profile.profile_photo_url.trim() &&
-    !!profile.matching_preferences.trim();
-  const canSubmit =
-    !!finalTheme && minPlayers >= 4 && maxPlayers >= minPlayers && !!user && !!scheduledAt;
 
   const filteredNearby = useMemo(() => {
-    if (mode !== "custom") return nearby;
+    if (matchMode !== "custom") return nearby;
     const allowsAllGenders = genders.includes("Tutti") || genders.length === 0;
-    return nearby.filter((p) => {
-      const ageMatches = p.age == null || (p.age >= ageMin && p.age <= ageMax);
-      const genderMatches = allowsAllGenders || (p.gender != null && genders.includes(p.gender));
+    return nearby.filter((profile) => {
+      const ageMatches = profile.age == null || (profile.age >= ageMin && profile.age <= ageMax);
+      const genderMatches =
+        allowsAllGenders || (profile.gender != null && genders.includes(profile.gender));
       return ageMatches && genderMatches;
     });
-  }, [mode, nearby, ageMin, ageMax, genders]);
+  }, [ageMax, ageMin, genders, matchMode, nearby]);
 
   useEffect(() => {
     let alive = true;
-
-    async function loadSession() {
+    async function load() {
       const currentUser = await getCurrentUser();
       if (!alive) return;
       setUser(currentUser);
-      setAuthReady(true);
-    }
+      if (!currentUser) return;
 
-    loadSession();
-    const subscription = onAuthUserChange((currentUser) => {
-      setUser(currentUser);
-    });
-
-    return () => {
-      alive = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (authReady && !user) {
-      navigate({ to: "/login" });
-    }
-  }, [authReady, navigate, user]);
-
-  useEffect(() => {
-    if (!user) {
-      setProfile(DEFAULT_PROFILE);
-      setNearby([]);
-      setInvited([]);
-      return;
-    }
-
-    const currentUser = user;
-    let alive = true;
-
-    async function loadProfile() {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("profiles")
-        .select("*")
+        .select("display_name, latitude, longitude")
         .eq("id", currentUser.id)
         .maybeSingle();
       if (!alive) return;
+      setHostName(data?.display_name ?? currentUser.email);
+      setLatitude(data?.latitude ?? null);
+      setLongitude(data?.longitude ?? null);
 
-      if (error) {
-        toast.error("Impossibile caricare il profilo", { description: error.message });
-        return;
+      if (data?.latitude && data?.longitude) {
+        await loadNearby(data.latitude, data.longitude);
       }
-
-      setProfile({
-        display_name: data?.display_name ?? currentUser.email.split("@")[0] ?? "",
-        age: data?.age?.toString() ?? "",
-        gender: data?.gender ?? "",
-        city: data?.city ?? "",
-        latitude: data?.latitude?.toString() ?? "",
-        longitude: data?.longitude?.toString() ?? "",
-        nationality: data?.nationality ?? "",
-        spoken_languages: data?.spoken_languages?.join(", ") ?? "",
-        preferred_language: data?.preferred_language ?? "",
-        interests: data?.interests?.join(", ") ?? "",
-        profile_photo_url: data?.profile_photo_url ?? "",
-        matching_preferences:
-          typeof data?.matching_preferences === "string"
-            ? data.matching_preferences
-            : ((data?.matching_preferences as { summary?: string } | null)?.summary ?? ""),
-        avatar_color: data?.avatar_color ?? DEFAULT_PROFILE.avatar_color,
-      });
     }
-
-    loadProfile();
+    load();
     return () => {
       alive = false;
     };
-  }, [user]);
+  }, []);
 
-  useEffect(() => {
-    if (!profile.latitude || !profile.longitude) return;
-
-    const lat = Number(profile.latitude);
-    const lng = Number(profile.longitude);
-    if (!user || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
-
-    let alive = true;
-
-    async function loadNearby() {
-      setNearbyLoading(true);
-      const { data, error } = await supabase.rpc("nearby_profiles", {
-        origin_lat: lat,
-        origin_lng: lng,
-        radius_km: 50,
-      });
-
-      if (!alive) return;
-      setNearbyLoading(false);
-
-      if (error) {
-        toast.error("Impossibile caricare le persone vicine", { description: error.message });
-        return;
-      }
-
-      setNearby(data ?? []);
-      setInvited((current) => current.filter((id) => (data ?? []).some((p) => p.id === id)));
+  async function loadNearby(originLat: number, originLng: number) {
+    setNearbyLoading(true);
+    const { data, error } = await supabase.rpc("nearby_profiles", {
+      origin_lat: originLat,
+      origin_lng: originLng,
+      radius_km: 50,
+    });
+    setNearbyLoading(false);
+    if (error) {
+      toast.error("Impossibile caricare le persone vicine", { description: error.message });
+      return;
     }
+    setNearby((data ?? []) as NearbyProfile[]);
+  }
 
-    loadNearby();
-    return () => {
-      alive = false;
-    };
-  }, [user, profile.latitude, profile.longitude]);
+  async function enableLocation() {
+    if (!user) return;
+    setLocating(true);
+    try {
+      const coordinates = await getBrowserPosition();
+      await saveUserLocation(user.id, coordinates);
+      setLatitude(coordinates.latitude);
+      setLongitude(coordinates.longitude);
+      await loadNearby(coordinates.latitude, coordinates.longitude);
+      toast.success(t("geo.saved"));
+    } catch (error) {
+      toast.error(t("geo.denied"), {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setLocating(false);
+    }
+  }
 
-  function toggleGender(g: string) {
-    setGenders((prev) => {
-      if (g === "Tutti") return ["Tutti"];
-      const next = prev.filter((x) => x !== "Tutti");
-      return next.includes(g) ? next.filter((x) => x !== g) : [...next, g];
+  function toggleGender(gender: string) {
+    setGenders((current) => {
+      if (gender === "Tutti") return ["Tutti"];
+      const next = current.filter((item) => item !== "Tutti");
+      return next.includes(gender) ? next.filter((item) => item !== gender) : [...next, gender];
     });
   }
 
   function toggleInvite(id: string) {
-    setInvited((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    setInvited((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
   }
 
   async function submit() {
-    if (!user) {
-      navigate({ to: "/login" });
+    if (!user) return;
+    if (!finalTheme || !scheduledAt) {
+      toast.error("Inserisci tema, data e orario");
+      return;
+    }
+    if (minPlayers < 4 || maxPlayers > 20 || maxPlayers < minPlayers) {
+      toast.error("I partecipanti devono essere tra 4 e 20");
       return;
     }
 
-    if (!finalTheme) {
-      toast.error("Scegli un tema per il round");
-      return;
-    }
-
-    if (!scheduledAt) {
-      toast.error("Imposta data e orario dell'evento");
-      return;
-    }
-
-    if (maxPlayers < minPlayers) {
-      toast.error("Il numero massimo di partecipanti deve essere maggiore del minimo");
-      return;
-    }
-
+    const invitedProfiles = nearby.filter((profile) => invited.includes(profile.id));
     setSubmitting(true);
-    try {
-      const invitedProfiles = nearby.filter((p) => invited.includes(p.id));
-      const invitedNames = invitedProfiles.map((p) => p.display_name);
-      const { data: event, error } = await supabase
-        .from("events")
-        .insert({
-          event_kind: "local",
-          host_id: user.id,
-          host_name: profile.display_name.trim() || user.email,
-          theme: finalTheme,
-          mode,
-          play_mode: playMode,
-          min_players: minPlayers,
-          max_players: maxPlayers,
-          radius_km: radiusKm,
-          scheduled_at: scheduledAt,
-          status: "scheduled",
-          age_min: mode === "custom" ? ageMin : null,
-          age_max: mode === "custom" ? ageMax : null,
-          gender_filter: mode === "custom" ? genders : [],
-          invited_profile_ids: invitedProfiles.map((p) => p.id),
-          invited_names: invitedNames,
-          participant_count: 1,
-        })
-        .select("id")
-        .single();
+    const { data: event, error } = await supabase
+      .from("events")
+      .insert({
+        event_kind: "local",
+        host_id: user.id,
+        host_name: hostName || user.email,
+        theme: finalTheme,
+        mode: matchMode,
+        play_mode: playMode,
+        min_players: minPlayers,
+        max_players: maxPlayers,
+        radius_km: 50,
+        scheduled_at: scheduledAt,
+        status: "scheduled",
+        age_min: matchMode === "custom" ? ageMin : null,
+        age_max: matchMode === "custom" ? ageMax : null,
+        gender_filter: matchMode === "custom" ? genders : [],
+        invited_profile_ids: invitedProfiles.map((profile) => profile.id),
+        invited_names: invitedProfiles.map((profile) => profile.display_name),
+        participant_count: 1,
+        latitude,
+        longitude,
+      })
+      .select("id")
+      .single();
 
-      if (error) {
-        toast.error("Impossibile creare il round", { description: error.message });
-        return;
-      }
-
-      if (event) {
-        const { error: participantError } = await supabase.from("event_participants").upsert({
-          event_id: event.id,
-          profile_id: user.id,
-          status: "booked",
-        });
-
-        if (participantError) {
-          toast.error("Round creato, ma prenotazione host non salvata", {
-            description: participantError.message,
-          });
-        }
-      }
-
-      toast.success("Round creato con successo");
-      navigate({ to: "/events" });
-    } finally {
+    if (error) {
       setSubmitting(false);
+      toast.error("Impossibile creare evento", { description: error.message });
+      return;
     }
+
+    if (event) {
+      await supabase.from("event_participants").upsert({
+        event_id: event.id,
+        profile_id: user.id,
+        status: "booked",
+      });
+    }
+
+    setSubmitting(false);
+    toast.success("Round creato");
+    navigate({ to: "/events" });
   }
 
   return (
@@ -349,54 +236,15 @@ function CreateEventPage() {
       <FloatingBackground />
       <Nav />
 
-      <main className="mx-auto max-w-3xl px-4 pb-32 pt-10 sm:px-6">
+      <main className="mx-auto max-w-4xl px-4 pb-24 pt-10 sm:px-6">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <p className="text-xs uppercase tracking-widest text-primary">Nuovo evento</p>
-          <h1 className="mt-2 text-4xl font-semibold sm:text-5xl">Crea il tuo round</h1>
+          <p className="text-xs uppercase tracking-widest text-primary">Modalità Locale</p>
+          <h1 className="mt-2 text-4xl font-semibold sm:text-5xl">Crea la tua stanza locale</h1>
           <p className="mt-3 text-muted-foreground">
-            Scegli un tema, decidi chi invitare e fai partire la magia.
+            Avvia una sessione con luogo, interessi e tema. Raggio massimo 50 km, min 4 e max 20
+            partecipanti.
           </p>
         </motion.div>
-
-        <Section step={0} title="Sessione utente" icon={<LogIn className="h-4 w-4" />}>
-          {!authReady ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Controllo sessione...
-            </div>
-          ) : !user ? (
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-sm text-muted-foreground">
-              <p className="mb-3 font-semibold">
-                Effettua il login dalla home per creare un evento locale.
-              </p>
-              <Link
-                to="/"
-                className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold transition hover:bg-white/[0.07]"
-              >
-                Vai al login
-              </Link>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="text-sm font-semibold">
-                  {profile.display_name || user.email} ·{" "}
-                  {profileComplete ? "profilo completo" : "profilo da completare"}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Il profilo contiene sesso, età, nazionalità, lingue, interessi, foto e preferenze
-                  di matching.
-                </p>
-              </div>
-              <Link
-                to="/profile"
-                className="inline-flex justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold transition hover:bg-white/[0.07]"
-              >
-                {profileComplete ? "Modifica profilo" : "Completa profilo"}
-              </Link>
-            </div>
-          )}
-        </Section>
 
         <Section step={1} title="Data e orario" icon={<CalendarClock className="h-4 w-4" />}>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -404,287 +252,280 @@ function CreateEventPage() {
               <input
                 type="date"
                 value={scheduledDate}
-                onChange={(e) => setScheduledDate(e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm focus:border-primary/60 focus:outline-none"
+                onChange={(event) => setScheduledDate(event.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm outline-none focus:border-primary/60"
               />
             </Field>
             <Field label="Orario evento">
               <input
                 type="time"
                 value={scheduledTime}
-                onChange={(e) => setScheduledTime(e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm focus:border-primary/60 focus:outline-none"
+                onChange={(event) => setScheduledTime(event.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm outline-none focus:border-primary/60"
               />
             </Field>
           </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <Field label={`Max partecipanti · ${maxPlayers}`}>
-              <input
-                type="range"
-                min={Math.max(4, minPlayers)}
-                max={20}
-                value={maxPlayers}
-                onChange={(e) => setMaxPlayers(Number(e.target.value))}
-                className="w-full accent-secondary"
-              />
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <Field label="Raggio evento">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm">
+                50 km
+              </div>
             </Field>
-            <Field label={`Raggio evento · ${radiusKm} km`}>
+            <Field label={`Min partecipanti: ${minPlayers}`}>
               <input
                 type="range"
-                min={5}
-                max={100}
-                value={radiusKm}
-                onChange={(e) => setRadiusKm(Number(e.target.value))}
+                min={4}
+                max={12}
+                value={minPlayers}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  setMinPlayers(next);
+                  setMaxPlayers((current) => Math.max(current, next));
+                }}
                 className="w-full accent-primary"
               />
             </Field>
+            <Field label={`Max partecipanti: ${maxPlayers}`}>
+              <input
+                type="range"
+                min={minPlayers}
+                max={20}
+                value={maxPlayers}
+                onChange={(event) => setMaxPlayers(Number(event.target.value))}
+                className="w-full accent-secondary"
+              />
+            </Field>
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">
-            Gli invitati potranno prenotarsi e accedere alla lobby quando arriverà il momento della
-            sessione.
-          </p>
+          <button
+            onClick={enableLocation}
+            disabled={locating}
+            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-semibold hover:bg-white/[0.08] disabled:opacity-50"
+          >
+            {locating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <MapPin className="h-4 w-4" />
+            )}
+            {latitude && longitude ? "Aggiorna coordinate stanza" : "Usa posizione per la stanza"}
+          </button>
         </Section>
 
-        {/* THEME */}
         <Section step={2} title="Tema dell'evento" icon={<Sparkles className="h-4 w-4" />}>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {PRESET_THEMES.map((t) => {
-              const Icon = t.icon;
-              const active = theme === t.label && !customTheme;
+            {PRESET_THEMES.map((preset) => {
+              const Icon = preset.icon;
+              const active = theme === preset.label && !customTheme;
               return (
                 <button
-                  key={t.label}
+                  key={preset.label}
                   onClick={() => {
-                    setTheme(t.label);
+                    setTheme(preset.label);
                     setCustomTheme("");
                   }}
-                  className={`group relative flex items-center gap-2 rounded-2xl border px-3 py-3 text-left text-sm transition ${
+                  className={`flex items-center gap-2 rounded-2xl border px-3 py-3 text-left text-sm transition ${
                     active
-                      ? "border-primary/60 bg-primary/10 text-foreground shadow-glow"
+                      ? "border-primary/60 bg-primary/15"
                       : "border-white/10 bg-white/[0.03] text-muted-foreground hover:bg-white/[0.06]"
                   }`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{t.label}</span>
-                  {active && <Check className="ml-auto h-4 w-4 text-primary" />}
+                  <span className="truncate">{preset.label}</span>
+                  {active ? <Check className="ml-auto h-4 w-4 text-primary" /> : null}
                 </button>
               );
             })}
           </div>
-          <div className="mt-3 flex items-center gap-2">
-            <div className="h-px flex-1 bg-white/10" />
-            <span className="text-xs uppercase tracking-widest text-muted-foreground">oppure</span>
-            <div className="h-px flex-1 bg-white/10" />
-          </div>
           <input
             value={customTheme}
-            onChange={(e) => setCustomTheme(e.target.value)}
-            maxLength={60}
-            placeholder="Scrivi un tema personalizzato…"
-            className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none"
+            onChange={(event) => setCustomTheme(event.target.value)}
+            maxLength={80}
+            placeholder="Oppure tema personalizzato..."
+            className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/60"
           />
         </Section>
 
-        {/* MODE */}
-        <Section step={3} title="Tipo di partita" icon={<Settings2 className="h-4 w-4" />}>
+        <Section step={3} title="Tipo di partita" icon={<Target className="h-4 w-4" />}>
           <div className="grid gap-3 sm:grid-cols-2">
             <ModeCard
-              active={mode === "random"}
-              onClick={() => setMode("random")}
+              active={matchMode === "random"}
+              onClick={() => setMatchMode("random")}
               icon={<Shuffle className="h-5 w-5" />}
               title="Random"
-              desc="Tutti possono unirsi. Min 4 giocatori per partire."
+              desc="Chiunque può unirsi liberamente. La partita parte con almeno 4 giocatori."
             />
             <ModeCard
-              active={mode === "custom"}
-              onClick={() => setMode("custom")}
-              icon={<Settings2 className="h-5 w-5" />}
+              active={matchMode === "custom"}
+              onClick={() => setMatchMode("custom")}
+              icon={<Target className="h-5 w-5" />}
               title="Custom"
-              desc="Tu scegli età, gender e chi invitare."
+              desc="Selezioni età, gender e inviti specifici."
             />
           </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <button
-              onClick={() => setPlayMode("chat")}
-              className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm transition ${playMode === "chat" ? "border-primary/60 bg-primary/10" : "border-white/10 bg-white/[0.03]"}`}
-            >
-              <MessageCircle className="h-4 w-4" /> Chat
-            </button>
-            <button
-              onClick={() => setPlayMode("webcam")}
-              className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm transition ${playMode === "webcam" ? "border-primary/60 bg-primary/10" : "border-white/10 bg-white/[0.03]"}`}
-            >
-              <Video className="h-4 w-4" /> Webcam
-            </button>
-          </div>
-
-          <Field label={`Min. giocatori · ${minPlayers}`}>
-            <input
-              type="range"
-              min={4}
-              max={12}
-              value={minPlayers}
-              onChange={(e) => {
-                const next = Number(e.target.value);
-                setMinPlayers(next);
-                setMaxPlayers((current) => Math.max(current, next));
-              }}
-              className="w-full accent-primary"
-            />
-          </Field>
 
           <AnimatePresence initial={false}>
-            {mode === "custom" && (
+            {matchMode === "custom" ? (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
                 className="overflow-hidden"
               >
-                <Field label={`Età · ${ageMin} – ${ageMax}`}>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={18}
-                      max={70}
-                      value={ageMin}
-                      onChange={(e) => setAgeMin(Math.min(Number(e.target.value), ageMax))}
-                      className="w-full accent-primary"
-                    />
-                    <input
-                      type="range"
-                      min={18}
-                      max={70}
-                      value={ageMax}
-                      onChange={(e) => setAgeMax(Math.max(Number(e.target.value), ageMin))}
-                      className="w-full accent-secondary"
-                    />
-                  </div>
-                </Field>
-
-                <Field label="Gender ammessi">
-                  <div className="flex flex-wrap gap-2">
-                    {GENDERS.map((g) => {
-                      const active = genders.includes(g);
-                      return (
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <Field label={`Età: ${ageMin}-${ageMax}`}>
+                    <div className="flex gap-3">
+                      <input
+                        type="range"
+                        min={18}
+                        max={70}
+                        value={ageMin}
+                        onChange={(event) =>
+                          setAgeMin(Math.min(Number(event.target.value), ageMax))
+                        }
+                        className="w-full accent-primary"
+                      />
+                      <input
+                        type="range"
+                        min={18}
+                        max={70}
+                        value={ageMax}
+                        onChange={(event) =>
+                          setAgeMax(Math.max(Number(event.target.value), ageMin))
+                        }
+                        className="w-full accent-secondary"
+                      />
+                    </div>
+                  </Field>
+                  <Field label="Gender">
+                    <div className="flex flex-wrap gap-2">
+                      {GENDERS.map((gender) => (
                         <button
-                          key={g}
-                          onClick={() => toggleGender(g)}
-                          className={`rounded-full border px-4 py-1.5 text-xs transition ${
-                            active
-                              ? "border-primary/60 bg-primary/10 text-foreground"
-                              : "border-white/10 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.07]"
+                          key={gender}
+                          onClick={() => toggleGender(gender)}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                            genders.includes(gender)
+                              ? "border-primary/60 bg-primary/15"
+                              : "border-white/10 bg-white/[0.04] text-muted-foreground"
                           }`}
                         >
-                          {g}
+                          {gender}
                         </button>
-                      );
-                    })}
-                  </div>
-                </Field>
+                      ))}
+                    </div>
+                  </Field>
+                </div>
               </motion.div>
-            )}
+            ) : null}
           </AnimatePresence>
         </Section>
 
-        {/* NEARBY */}
+        <Section step={4} title="Modalità sessione" icon={<MessageCircle className="h-4 w-4" />}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ModeCard
+              active={playMode === "chat"}
+              onClick={() => setPlayMode("chat")}
+              icon={<MessageCircle className="h-5 w-5" />}
+              title="Chat Mode"
+              desc="Conversazione testuale da 5 minuti."
+            />
+            <ModeCard
+              active={playMode === "voice"}
+              onClick={() => setPlayMode("voice")}
+              icon={<Mic className="h-5 w-5" />}
+              title="Vocal Mode"
+              desc="Conversazione audio live da 3 minuti."
+            />
+          </div>
+        </Section>
+
         <Section
-          step={4}
+          step={5}
           title="Persone vicine"
-          icon={<MapPin className="h-4 w-4" />}
+          icon={<Users className="h-4 w-4" />}
           aside={
             <span className="text-xs text-muted-foreground">
-              {invited.length} invitat{invited.length === 1 ? "o" : "i"} · raggio 50 km
+              {invited.length} invitati · raggio 50 km
             </span>
           }
         >
-          {!user ? (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
-              Effettua il login per caricare profili reali vicino a te.
-            </div>
-          ) : !hasLocation ? (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
-              Aggiungi latitudine e longitudine, oppure usa la posizione del browser.
-            </div>
-          ) : nearbyLoading ? (
-            <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
+          {nearbyLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Carico persone nel raggio di 50 km...
+              Carico profili vicini...
             </div>
           ) : filteredNearby.length === 0 ? (
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-muted-foreground">
-              Nessun profilo trovato nel raggio o con questi filtri.
+              Nessun profilo trovato con questi filtri.
             </div>
           ) : (
             <div className="grid gap-2 sm:grid-cols-2">
-              {filteredNearby.map((p) => {
-                const active = invited.includes(p.id);
+              {filteredNearby.map((profile) => {
+                const active = invited.includes(profile.id);
                 return (
-                  <motion.button
-                    key={p.id}
-                    onClick={() => toggleInvite(p.id)}
-                    whileTap={{ scale: 0.98 }}
+                  <button
+                    key={profile.id}
+                    onClick={() => toggleInvite(profile.id)}
                     className={`flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition ${
-                      active
-                        ? "border-primary/60 bg-primary/10"
-                        : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
+                      active ? "border-primary/60 bg-primary/15" : "border-white/10 bg-white/[0.03]"
                     }`}
                   >
-                    <div
-                      className={`grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br ${p.avatar_color} text-sm font-semibold text-white`}
-                    >
-                      {p.display_name[0]}
-                    </div>
+                    {profile.profile_photo_url ? (
+                      <img
+                        src={profile.profile_photo_url}
+                        alt={profile.display_name}
+                        className="h-10 w-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div
+                        className={`grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br ${profile.avatar_color} text-sm font-semibold`}
+                      >
+                        {profile.display_name[0]}
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">
-                        {p.display_name}
-                        {p.age ? `, ${p.age}` : ""}
+                        {profile.display_name}
+                        {profile.age ? `, ${profile.age}` : ""}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {p.distance_km.toFixed(1)} km{p.city ? ` · ${p.city}` : ""}
+                        {profile.distance_km.toFixed(1)} km
+                        {profile.city ? ` · ${profile.city}` : ""}
                       </div>
                     </div>
-                    <span
-                      className={`grid h-7 w-7 place-items-center rounded-full transition ${
-                        active
-                          ? "gradient-primary text-primary-foreground shadow-glow"
-                          : "bg-white/5 text-muted-foreground"
-                      }`}
-                    >
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-white/10">
                       {active ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                     </span>
-                  </motion.button>
+                  </button>
                 );
               })}
             </div>
           )}
         </Section>
 
-        {/* SUMMARY + CTA */}
-        <div className="mt-10 glass-strong rounded-3xl p-5">
+        <div className="mt-8 glass-strong rounded-3xl p-5">
           <div className="flex items-start gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-full gradient-primary shadow-glow">
-              <Users className="h-5 w-5 text-primary-foreground" />
+              <Sparkles className="h-5 w-5 text-primary-foreground" />
             </div>
-            <div className="flex-1">
-              <div className="text-sm font-semibold">{finalTheme || "Tema da scegliere"}</div>
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                {mode === "random" ? "Random" : "Custom"} ·{" "}
-                {playMode === "chat" ? "Chat" : "Webcam"} · min {minPlayers}
-                {scheduledAt && ` · ${new Date(scheduledAt).toLocaleString("it-IT")}`}
-                {mode === "custom" && ` · ${ageMin}-${ageMax} anni`}
-                {invited.length > 0 && ` · ${invited.length} invitati`}
-              </div>
+            <div>
+              <p className="font-semibold">{finalTheme || "Tema da scegliere"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {matchMode === "random" ? "Random" : "Custom"} ·{" "}
+                {playMode === "chat" ? "Chat Mode" : "Vocal Mode"} · min {minPlayers} · max{" "}
+                {maxPlayers} · raggio 50 km
+              </p>
             </div>
           </div>
           <button
-            disabled={submitting}
             onClick={submit}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-full gradient-primary py-4 font-semibold text-primary-foreground shadow-glow transition disabled:opacity-40 disabled:shadow-none"
+            disabled={submitting}
+            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full gradient-primary px-6 py-4 font-semibold text-primary-foreground shadow-glow disabled:opacity-50"
           >
-            {submitting ? "Creazione..." : "Crea Round"}
-            <ChevronRight className="h-4 w-4" />
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            Crea Round
           </button>
         </div>
       </main>
@@ -701,15 +542,15 @@ function Section({
 }: {
   step: number;
   title: string;
-  icon: React.ReactNode;
-  aside?: React.ReactNode;
-  children: React.ReactNode;
+  icon: ReactNode;
+  aside?: ReactNode;
+  children: ReactNode;
 }) {
   return (
     <motion.section
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: step * 0.05 }}
+      transition={{ delay: step * 0.035 }}
       className="mt-8 glass rounded-3xl p-5 sm:p-6"
     >
       <header className="mb-4 flex items-center justify-between gap-3">
@@ -729,14 +570,14 @@ function Section({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="mt-5">
-      <label className="mb-2 block text-xs uppercase tracking-widest text-muted-foreground">
+    <label className="block">
+      <span className="mb-2 block text-xs uppercase tracking-widest text-muted-foreground">
         {label}
-      </label>
+      </span>
       {children}
-    </div>
+    </label>
   );
 }
 
@@ -749,30 +590,22 @@ function ModeCard({
 }: {
   active: boolean;
   onClick: () => void;
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   desc: string;
 }) {
   return (
-    <motion.button
+    <button
       onClick={onClick}
-      whileHover={{ y: -2 }}
-      className={`relative overflow-hidden rounded-3xl border p-5 text-left transition ${
-        active
-          ? "border-primary/60 bg-primary/10 shadow-glow"
-          : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
+      className={`rounded-3xl border p-5 text-left transition ${
+        active ? "border-primary/60 bg-primary/15" : "border-white/10 bg-white/[0.03]"
       }`}
     >
-      <div className="grid h-10 w-10 place-items-center rounded-2xl gradient-primary text-primary-foreground">
+      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/10 text-primary">
         {icon}
       </div>
       <h3 className="mt-3 text-lg font-semibold">{title}</h3>
-      <p className="mt-1 text-xs text-muted-foreground">{desc}</p>
-      {active && (
-        <span className="absolute right-4 top-4 grid h-6 w-6 place-items-center rounded-full bg-primary text-primary-foreground">
-          <Check className="h-3.5 w-3.5" />
-        </span>
-      )}
-    </motion.button>
+      <p className="mt-1 text-sm text-muted-foreground">{desc}</p>
+    </button>
   );
 }

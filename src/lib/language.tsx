@@ -1,165 +1,262 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import i18n from "i18next";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { I18nextProvider, initReactI18next, useTranslation } from "react-i18next";
 
-type Language = 'it' | 'en';
+export type Language = "it" | "en" | "es" | "fr";
 
-interface LanguageContextType {
+type LanguageContextType = {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: string) => string;
-}
+  t: (key: string, values?: Record<string, string | number>) => string;
+};
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-const translations = {
-  en: {
-    'nav.home': 'Home',
-    'nav.play': 'Play',
-    'nav.events': 'Events',
-    'nav.profile': 'Profile',
-    'nav.matches': 'Matches',
-    'nav.logout': 'Logout',
-    'nav.login': 'Login',
-    'landing.live': 'Live · {count} people online right now',
-    'landing.title': 'Speed dating, reinvented in real time.',
-    'landing.subtitle': 'Hop into a live round, chat or video with curated strangers, and reveal mutual matches when the timer hits zero.',
-    'landing.enter_lobby': 'Enter the lobby',
-    'landing.logout': 'Logout',
-    'landing.how_it_works': 'How it works',
-    'landing.online': 'Online',
-    'landing.active_rooms': 'Active rooms',
-    'landing.matches_today': 'Matches today',
-    'landing.avg_rating': 'Avg. rating',
-    'landing.how_title': 'How it works',
-    'landing.round_beats': 'A round in three beats.',
-    'landing.build_vibe': 'Build your vibe',
-    'landing.build_desc': 'Photo, age, a couple of interests. Sixty seconds.',
-    'landing.drop_room': 'Drop into a room',
-    'landing.drop_desc': 'We balance the lobby and start the moment it\'s fair.',
-    'landing.reveal_matches': 'Reveal your matches',
-    'landing.reveal_desc': 'Tap interested in secret. Mutuals unlock private chat.',
-    'landing.chat_mode': 'Chat Mode',
-    'landing.chat_time': '5 min per round',
-    'landing.chat_desc': 'Words first. Trade messages, emoji and AI icebreakers. Low pressure, high spark.',
-    'landing.video_mode': 'Webcam Mode',
-    'landing.video_time': '3 min per round',
-    'landing.video_desc': 'Eyes on. Quick face-to-face video rounds with mute, report, and a smooth round-end overlay.',
-    'landing.from_rounds': 'From the rounds',
-    'landing.people_met': 'People who actually met.',
-    'landing.cta_title': 'Your next round starts in seconds.',
-    'landing.cta_desc': 'Verified profiles, instant exits, zero phone-number sharing. Just vibes.',
-    'landing.enter_lobby_2': 'Enter the lobby',
-    'auth.login_title': 'Log in',
-    'auth.signup_title': 'Sign up',
-    'auth.email_label': 'Email',
-    'auth.password_label': 'Password',
-    'auth.confirm_password_label': 'Confirm password',
-    'auth.login_button': 'Login',
-    'auth.signup_button': 'Sign up',
-    'auth.have_account': 'Already have an account? Login',
-    'auth.no_account': "Don't have an account? Sign up",
-    'auth.login_error': 'Invalid credentials',
-    'auth.login_success': 'Logged in successfully',
-    'auth.signup_success': 'Account created successfully',
-    'auth.password_mismatch': 'Passwords do not match',
-    'auth.check_email_confirmation': 'Check your email to confirm your account.',
-    'matches.online_now': '● online now',
-    'room.disconnected': 'disconnesso',
-    'room.online': '● online',
-    'room.offline': 'offline',
-    'app.name': 'Giogo',
-    'app.title': 'Giogo — Live Speed Dating Rooms',
-    'app.footer': '© {year} Giogo. Made for real connections.',
-    'root.404': 'This round doesn\'t exist.',
-    'root.back_home': 'Back to home',
-    'root.error': 'Something glitched',
-    'root.try_again': 'Try again',
-    'change_language': 'Change language',
-  },
+const resources: Record<Language, { translation: Record<string, string> }> = {
   it: {
-    'nav.home': 'Inizio',
-    'nav.play': 'Gioca',
-    'nav.events': 'Eventi',
-    'nav.profile': 'Profilo',
-    'nav.matches': 'Matches',
-    'nav.logout': 'Esci',
-    'nav.login': 'Accedi',
-    'landing.live': 'Live · {count} persone online ora',
-    'landing.title': 'Speed dating, reinventato in tempo reale.',
-    'landing.subtitle': 'Entra in un round live, chatta o videochiama con estranei selezionati, e scopri i match reciproci quando il timer arriva a zero.',
-    'landing.enter_lobby': 'Entra nella lobby',
-    'landing.logout': 'Esci',
-    'landing.how_it_works': 'Come funziona',
-    'landing.online': 'Online',
-    'landing.active_rooms': 'Stanze attive',
-    'landing.matches_today': 'Match oggi',
-    'landing.avg_rating': 'Valutazione media',
-    'landing.how_title': 'Come funziona',
-    'landing.round_beats': 'Un round in tre battute.',
-    'landing.build_vibe': 'Costruisci il tuo vibe',
-    'landing.build_desc': 'Foto, età, un paio di interessi. Sessanta secondi.',
-    'landing.drop_room': 'Entra in una stanza',
-    'landing.drop_desc': 'Bilanciamo la lobby e iniziamo nel momento in cui è equo.',
-    'landing.reveal_matches': 'Rivela i tuoi match',
-    'landing.reveal_desc': 'Tocca interessato in segreto. I mutual sbloccano la chat privata.',
-    'landing.chat_mode': 'Modalità Chat',
-    'landing.chat_time': '5 min per round',
-    'landing.chat_desc': 'Prima le parole. Scambia messaggi, emoji e rompighiaccio AI. Bassa pressione, alta scintilla.',
-    'landing.video_mode': 'Modalità Webcam',
-    'landing.video_time': '3 min per round',
-    'landing.video_desc': 'Occhi su. Round video faccia a faccia rapidi con muto, segnala e un overlay di fine round fluido.',
-    'landing.from_rounds': 'Dai round',
-    'landing.people_met': 'Persone che si sono davvero incontrate.',
-    'landing.cta_title': 'Il tuo prossimo round inizia in secondi.',
-    'landing.cta_desc': 'Profili verificati, uscite istantanee, zero condivisione numeri di telefono. Solo vibes.',
-    'landing.enter_lobby_2': 'Entra nella lobby',
-    'auth.login_title': 'Accedi',
-    'auth.signup_title': 'Registrati',
-    'auth.email_label': 'Email',
-    'auth.password_label': 'Password',
-    'auth.confirm_password_label': 'Conferma password',
-    'auth.login_button': 'Accedi',
-    'auth.signup_button': 'Registrati',
-    'auth.have_account': 'Hai già un account? Accedi',
-    'auth.no_account': 'Non hai un account? Registrati',
-    'auth.login_error': 'Credenziali non valide',
-    'auth.login_success': 'Accesso effettuato',
-    'auth.signup_success': 'Account creato con successo',
-    'auth.password_mismatch': 'Le password non corrispondono',
-    'auth.check_email_confirmation': 'Controlla la tua email per confermare il tuo account.',
-    'matches.online_now': '● online ora',
-    'room.disconnected': 'disconnesso',
-    'room.online': '● online',
-    'room.offline': 'offline',
-    'app.name': 'Giogo',
-    'app.title': 'Giogo — Stanze Live di Speed Dating',
-    'app.footer': '© {year} Giogo. Fatto per connessioni reali.',
-    'root.404': 'Questo round non esiste.',
-    'root.back_home': 'Torna alla home',
-    'root.error': 'Qualcosa è andato storto',
-    'root.try_again': 'Riprova',
-    'change_language': 'Cambia lingua',
+    translation: {
+      "app.name": "Giogo",
+      "app.title": "Giogo - Dating locale con chat e voce",
+      "app.footer": "© {year} Giogo. Connessioni reali, senza rumore.",
+      change_language: "Cambia lingua",
+      "nav.home": "Home",
+      "nav.play": "Play",
+      "nav.events": "Eventi",
+      "nav.profile": "Profilo",
+      "nav.matches": "Matches",
+      "nav.settings": "Impostazioni",
+      "nav.logout": "Esci",
+      "nav.login": "Accedi",
+      "nav.register": "Registrati",
+      "root.404": "Questa pagina non esiste.",
+      "root.back_home": "Torna alla home",
+      "root.error": "Qualcosa è andato storto",
+      "root.try_again": "Riprova",
+      "landing.badge": "Match locali, eventi e round rapidi",
+      "landing.title": "Incontri reali, prima con voce e chat.",
+      "landing.subtitle":
+        "Giogo combina matchmaking vicino a te, eventi entro 50 km e conversazioni brevi pensate per capire subito se c'è feeling.",
+      "landing.register": "Registrati",
+      "landing.login": "Accedi",
+      "landing.how_title": "Come funziona",
+      "landing.how_1": "Crea un profilo essenziale con una sola foto e prompt personali.",
+      "landing.how_2": "Attiva la posizione per scoprire persone ed eventi vicini.",
+      "landing.how_3": "Entra in round chat da 5 minuti o vocali da 3 minuti.",
+      "landing.events": "Eventi vicini",
+      "landing.people": "Profili reali",
+      "landing.preview_city": "Persone nella tua zona",
+      "landing.preview_voice": "Round vocale",
+      "landing.preview_chat": "Chat rapida",
+      "auth.login_title": "Accedi",
+      "auth.signup_title": "Registrati",
+      "auth.email_label": "Email",
+      "auth.password_label": "Password",
+      "auth.confirm_password_label": "Conferma password",
+      "auth.login_button": "Accedi",
+      "auth.signup_button": "Crea account",
+      "auth.have_account": "Hai già un account?",
+      "auth.no_account": "Non hai un account?",
+      "auth.login_error": "Accesso non riuscito",
+      "auth.login_success": "Accesso effettuato",
+      "auth.signup_success": "Account creato",
+      "auth.password_mismatch": "Le password non corrispondono",
+      "auth.check_email_confirmation": "Controlla la tua email per confermare l'account.",
+      "auth.forgot": "Hai dimenticato la password?",
+      "auth.reset_sent": "Email di recupero inviata",
+      "common.loading": "Caricamento...",
+      "common.save": "Salva",
+      "common.cancel": "Annulla",
+      "common.edit": "Modifica",
+      "common.update": "Aggiorna",
+      "common.delete": "Elimina",
+      "common.km": "{value} km",
+      "geo.enable": "Usa posizione attuale",
+      "geo.saved": "Posizione salvata",
+      "geo.denied": "Posizione non disponibile",
+      "dashboard.title": "Scegli come incontrare qualcuno adesso.",
+      "dashboard.subtitle":
+        "Locale o globale, poi chat veloce o voce live. Tutto ruota attorno a parole e audio.",
+      "dashboard.local": "Locale",
+      "dashboard.global": "Globale",
+      "dashboard.chat": "Chat",
+      "dashboard.voice": "Vocale",
+      "dashboard.local_desc": "Persone reali vicino alla tua posizione.",
+      "dashboard.global_desc": "Match casuale internazionale.",
+      "dashboard.chat_desc": "Conversazione testuale da 5 minuti.",
+      "dashboard.voice_desc": "Audio live da 3 minuti.",
+      "dashboard.start": "Entra nel round",
+      "dashboard.nearby": "Utenti vicini",
+      "dashboard.no_nearby": "Nessun profilo reale trovato vicino a te.",
+      "events.title": "Eventi",
+      "events.subtitle": "Crea eventi liberamente. Solo chi è entro 50 km può partecipare.",
+      "events.create": "Crea evento",
+      "events.join": "Partecipa",
+      "events.too_far": "Troppo lontano",
+      "events.created": "Evento creato",
+      "events.needs_location": "Attiva la posizione per partecipare agli eventi vicini.",
+      "matches.title": "I tuoi match",
+      "matches.empty": "Nessun match ancora. Entra in un round per iniziare.",
+      "matches.message": "Scrivi un messaggio...",
+      "settings.title": "Impostazioni",
+      "settings.subtitle": "Gestisci sessione, profilo e account.",
+      "settings.delete_profile": "Elimina profilo",
+      "settings.delete_account": "Elimina account",
+      "profile.create": "Crea profilo",
+      "profile.edit": "Modifica profilo",
+      "profile.update": "Aggiorna profilo",
+      "profile.saved": "Profilo salvato",
+      "profile.photo": "Foto profilo",
+      "profile.name": "Nome",
+      "profile.age": "Età",
+      "profile.city": "Città",
+      "profile.bio": "Bio",
+      "profile.interests": "Interessi",
+      "profile.looking_for": "Cosa cerchi",
+      "profile.hobbies": "Hobby",
+      "profile.preferred_mode": "Modalità preferita",
+      "profile.prompts": "Prompt personali",
+      "profile.prompt_1": "Una cosa che amo fare...",
+      "profile.prompt_2": "Andiamo d'accordo se...",
+      "profile.prompt_3": "La mia green flag...",
+      "profile.prompt_4": "La cosa più spontanea che ho fatto...",
+    },
   },
+  en: { translation: {} },
+  es: { translation: {} },
+  fr: { translation: {} },
 };
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguage] = useState<Language>('it');
+resources.en.translation = {
+  ...resources.it.translation,
+  "app.title": "Giogo - Local dating with chat and voice",
+  "app.footer": "© {year} Giogo. Real connections, less noise.",
+  "nav.events": "Events",
+  "nav.profile": "Profile",
+  "nav.settings": "Settings",
+  "nav.logout": "Logout",
+  "nav.login": "Login",
+  "nav.register": "Register",
+  "landing.badge": "Local matches, events and quick rounds",
+  "landing.title": "Real dates, starting with voice and chat.",
+  "landing.subtitle":
+    "Giogo combines nearby matchmaking, events within 50 km and short conversations that quickly show whether there is chemistry.",
+  "landing.register": "Register",
+  "landing.login": "Login",
+  "landing.how_title": "How it works",
+  "landing.how_1": "Create a focused profile with one photo and personal prompts.",
+  "landing.how_2": "Enable location to discover nearby people and events.",
+  "landing.how_3": "Join 5-minute chat rounds or 3-minute voice rounds.",
+  "landing.events": "Nearby events",
+  "landing.people": "Real profiles",
+  "dashboard.title": "Choose how to meet someone now.",
+  "dashboard.subtitle":
+    "Local or global, then quick chat or live voice. Everything is built around words and audio.",
+  "dashboard.local": "Local",
+  "dashboard.global": "Global",
+  "dashboard.chat": "Chat",
+  "dashboard.voice": "Voice",
+  "dashboard.local_desc": "Real people near your position.",
+  "dashboard.global_desc": "Random international matching.",
+  "dashboard.chat_desc": "5-minute text conversation.",
+  "dashboard.voice_desc": "3-minute live audio.",
+  "dashboard.start": "Enter round",
+  "dashboard.nearby": "Nearby users",
+  "dashboard.no_nearby": "No real profiles found near you.",
+  "events.title": "Events",
+  "events.subtitle": "Create events freely. Only users within 50 km can join.",
+  "events.create": "Create event",
+  "events.join": "Join",
+  "events.too_far": "Too far",
+  "matches.title": "Your matches",
+  "matches.empty": "No matches yet. Join a round to get started.",
+  "settings.title": "Settings",
+  "settings.subtitle": "Manage session, profile and account.",
+  "profile.create": "Create profile",
+  "profile.edit": "Edit profile",
+  "profile.update": "Update profile",
+  "profile.saved": "Profile saved",
+};
+resources.es.translation = {
+  ...resources.en.translation,
+  "nav.events": "Eventos",
+  "nav.profile": "Perfil",
+  "nav.settings": "Ajustes",
+  "nav.logout": "Salir",
+  "nav.login": "Iniciar sesión",
+  "nav.register": "Registrarse",
+  "landing.title": "Citas reales, primero con voz y chat.",
+  "dashboard.local": "Local",
+  "dashboard.global": "Global",
+  "dashboard.voice": "Voz",
+  "events.title": "Eventos",
+  "matches.title": "Tus matches",
+  "settings.title": "Ajustes",
+  "profile.edit": "Editar perfil",
+};
+resources.fr.translation = {
+  ...resources.en.translation,
+  "nav.events": "Événements",
+  "nav.profile": "Profil",
+  "nav.settings": "Réglages",
+  "nav.logout": "Déconnexion",
+  "nav.login": "Connexion",
+  "nav.register": "Inscription",
+  "landing.title": "De vraies rencontres, d'abord par voix et chat.",
+  "dashboard.local": "Local",
+  "dashboard.global": "Global",
+  "dashboard.voice": "Vocal",
+  "events.title": "Événements",
+  "matches.title": "Vos matches",
+  "settings.title": "Réglages",
+  "profile.edit": "Modifier le profil",
+};
 
-  const t = (key: string) => {
-    const translation = translations[language][key as keyof typeof translations[typeof language]];
-    return translation || key;
-  };
+if (!i18n.isInitialized) {
+  i18n.use(initReactI18next).init({
+    resources,
+    lng: "it",
+    fallbackLng: "en",
+    interpolation: {
+      escapeValue: false,
+    },
+  });
+}
+
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const [language, setLanguageState] = useState<Language>(() => {
+    if (typeof window === "undefined") return "it";
+    return (window.localStorage.getItem("giogo-language") as Language | null) ?? "it";
+  });
+
+  useEffect(() => {
+    i18n.changeLanguage(language);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("giogo-language", language);
+    }
+  }, [language]);
+
+  const value = useMemo<LanguageContextType>(
+    () => ({
+      language,
+      setLanguage: setLanguageState,
+      t: (key, values) =>
+        i18n.t(key, values).replace(/\{(\w+)\}/g, (_, name) => `${values?.[name] ?? ""}`),
+    }),
+    [language],
+  );
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
-      {children}
-    </LanguageContext.Provider>
+    <I18nextProvider i18n={i18n}>
+      <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
+    </I18nextProvider>
   );
 }
 
 export function useLanguage() {
   const context = useContext(LanguageContext);
+  const { t } = useTranslation();
   if (!context) {
-    throw new Error('useLanguage must be used within a LanguageProvider');
+    throw new Error("useLanguage must be used within a LanguageProvider");
   }
-  return context;
+  return { ...context, t: context.t ?? t };
 }

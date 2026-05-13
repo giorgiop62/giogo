@@ -1,286 +1,348 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { motion } from "framer-motion";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
-  MessageCircle,
-  Video,
-  Users,
-  Loader2,
-  X,
-  Sparkles,
-  Plus,
+  CalendarPlus,
   Globe2,
+  Loader2,
   MapPin,
-  Languages,
+  MessageCircle,
+  Mic,
+  Navigation,
+  Sparkles,
+  Users,
 } from "lucide-react";
 import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
-import { requireAuth } from "@/lib/auth";
+import { getCurrentUser, requireAuth, type AuthUser } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
+import { getBrowserPosition, saveUserLocation } from "@/lib/geo";
+import { toast } from "sonner";
+import { useLanguage } from "@/lib/language";
 
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: requireAuth,
   component: Dashboard,
 });
 
-type Mode = "chat" | "webcam";
-type SessionKind = "global" | "local";
-type Language = "Italiano" | "English" | "Español";
+type Scope = "global" | "local";
+type PlayMode = "chat" | "voice";
+type SessionLanguage = "Italiano" | "English" | "Español";
 
-const FAKE_QUEUE = [
-  { name: "Mia", age: 26, color: "from-rose-500 to-pink-500" },
-  { name: "Noah", age: 28, color: "from-cyan-400 to-blue-500" },
-  { name: "Léa", age: 24, color: "from-fuchsia-500 to-purple-500" },
-  { name: "Ethan", age: 30, color: "from-amber-400 to-rose-500" },
-  { name: "Sofia", age: 27, color: "from-emerald-400 to-cyan-500" },
-  { name: "Aman", age: 31, color: "from-indigo-400 to-fuchsia-500" },
-];
+type NearbyProfile = {
+  id: string;
+  display_name: string;
+  age: number | null;
+  city: string | null;
+  avatar_color: string;
+  distance_km: number;
+  profile_photo_url?: string | null;
+};
+
+const SESSION_LANGUAGES: SessionLanguage[] = ["Italiano", "English", "Español"];
 
 function Dashboard() {
-  const [mode, setMode] = useState<Mode | null>(null);
-  const [sessionKind, setSessionKind] = useState<SessionKind>("global");
-  const [language, setLanguage] = useState<Language>("Italiano");
-  const [localEvent, setLocalEvent] = useState("Napoletani ad Arezzo");
-  const [radiusKm, setRadiusKm] = useState(25);
-  const [queueing, setQueueing] = useState(false);
-  const [count, setCount] = useState(2);
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [scope, setScope] = useState<Scope>("global");
+  const [playMode, setPlayMode] = useState<PlayMode>("chat");
+  const [sessionLanguage, setSessionLanguage] = useState<SessionLanguage>("Italiano");
+  const [nearby, setNearby] = useState<NearbyProfile[]>([]);
+  const [loadingNearby, setLoadingNearby] = useState(true);
+  const [locating, setLocating] = useState(false);
 
-  useEffect(() => {
-    if (!queueing) return;
-    const grow = setInterval(() => {
-      setCount((c) => {
-        const next = Math.min(8, c + 1);
-        return next >= 4 && next % 2 === 1 ? next + 1 : next;
+  const loadNearby = useCallback(
+    async (latitude: number, longitude: number) => {
+      setLoadingNearby(true);
+      const { data, error } = await supabase.rpc("nearby_profiles", {
+        origin_lat: latitude,
+        origin_lng: longitude,
+        radius_km: 50,
       });
-    }, 1400);
-    return () => clearInterval(grow);
-  }, [queueing]);
+      setLoadingNearby(false);
+      if (error) {
+        toast.error(t("geo.denied"), { description: error.message });
+        return;
+      }
+      setNearby((data ?? []) as NearbyProfile[]);
+    },
+    [t],
+  );
 
   useEffect(() => {
-    if (queueing && count >= 4 && count % 2 === 0) {
-      const t = setTimeout(
-        () =>
-          navigate({
-            to: "/room",
-            search: {
-              mode: mode!,
-              kind: sessionKind,
-              lang: language,
-              event: sessionKind === "local" ? localEvent : undefined,
-              radius: sessionKind === "local" ? radiusKm : undefined,
-            },
-          }),
-        1600,
-      );
-      return () => clearTimeout(t);
+    let alive = true;
+    async function load() {
+      const currentUser = await getCurrentUser();
+      if (!alive) return;
+      setUser(currentUser);
+      if (!currentUser) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("latitude, longitude")
+        .eq("id", currentUser.id)
+        .maybeSingle();
+
+      if (profile?.latitude && profile?.longitude) {
+        await loadNearby(profile.latitude, profile.longitude);
+      } else {
+        setLoadingNearby(false);
+      }
     }
-  }, [count, queueing, mode, sessionKind, language, localEvent, radiusKm, navigate]);
+    load();
+    return () => {
+      alive = false;
+    };
+  }, [loadNearby]);
+
+  async function enableLocation() {
+    if (!user) return;
+    setLocating(true);
+    try {
+      const coordinates = await getBrowserPosition();
+      await saveUserLocation(user.id, coordinates);
+      await loadNearby(coordinates.latitude, coordinates.longitude);
+      toast.success(t("geo.saved"));
+    } catch (error) {
+      toast.error(t("geo.denied"), {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  function startGlobalRound() {
+    navigate({
+      to: "/room",
+      search: {
+        mode: playMode,
+        kind: "global",
+        lang: sessionLanguage,
+        participants: 10,
+      },
+    });
+  }
 
   return (
     <div className="relative min-h-screen">
       <FloatingBackground />
       <Nav />
 
-      <main className="mx-auto max-w-5xl px-4 pb-24 pt-12 sm:px-6">
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <p className="text-xs uppercase tracking-widest text-primary">Lobby live</p>
-          <h1 className="mt-2 text-4xl font-semibold sm:text-5xl">
-            Scegli la stanza, poi entra nel round.
-          </h1>
-          <p className="mt-3 text-muted-foreground">
-            La sessione parte solo con almeno 4 persone e un numero pari di partecipanti
-            compatibili.
-          </p>
+      <main className="mx-auto max-w-6xl px-4 pb-24 pt-10 sm:px-6">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid gap-6 lg:grid-cols-[1fr_360px]"
+        >
+          <section>
+            <p className="text-xs uppercase tracking-widest text-primary">Play</p>
+            <h1 className="mt-2 max-w-3xl text-4xl font-semibold leading-tight sm:text-6xl">
+              Modalità di gioco
+            </h1>
+            <p className="mt-4 max-w-2xl text-muted-foreground">
+              Scegli tra sessioni globali da 10 partecipanti o stanze locali basate su zona,
+              interessi e tema.
+            </p>
+          </section>
+          <section className="glass-strong rounded-3xl p-5">
+            <div className="flex items-center gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl gradient-primary">
+                <Navigation className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div>
+                <p className="font-semibold">{t("geo.enable")}</p>
+                <p className="text-xs text-muted-foreground">
+                  Necessaria per profili e stanze locali
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={enableLocation}
+              disabled={locating}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-semibold hover:bg-white/[0.08] disabled:opacity-50"
+            >
+              {locating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MapPin className="h-4 w-4" />
+              )}
+              {t("geo.enable")}
+            </button>
+          </section>
         </motion.div>
 
-        <div className="mt-10 grid gap-4 md:grid-cols-2">
-          <SessionButton
-            active={sessionKind === "global"}
-            onClick={() => setSessionKind("global")}
+        <div className="mt-8 grid gap-4 md:grid-cols-2">
+          <Choice
+            active={scope === "global"}
+            onClick={() => setScope("global")}
             icon={<Globe2 className="h-5 w-5" />}
-            title="Globale"
-            desc="Match nel mondo con persone che parlano la stessa lingua."
+            title="Modalità Globale"
+            desc="Sessioni internazionali basate su lingua e compatibilità. Partenza con 10 utenti."
           />
-          <SessionButton
-            active={sessionKind === "local"}
-            onClick={() => {
-              setSessionKind("local");
-              navigate({ to: "/create-event" });
-            }}
+          <Choice
+            active={scope === "local"}
+            onClick={() => setScope("local")}
             icon={<MapPin className="h-5 w-5" />}
-            title="Evento locale"
-            desc="Stanza con raggio geografico, interessi e tema personalizzato."
+            title="Modalità Locale"
+            desc="Crea o entra in stanze entro 50 km, con tema, interessi e filtri personalizzati."
           />
         </div>
 
-        <div className="mt-4 glass rounded-3xl p-5">
-          {sessionKind === "global" ? (
-            <div>
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-                <Languages className="h-4 w-4 text-secondary" />
-                Lingua della sessione
-              </div>
-              <div className="grid gap-2 sm:grid-cols-3">
-                {(["Italiano", "English", "Español"] as const).map((item) => (
-                  <button
-                    key={item}
-                    onClick={() => setLanguage(item)}
-                    className={`rounded-2xl border px-4 py-3 text-sm transition ${
-                      language === item
-                        ? "border-primary/60 bg-primary/10 text-foreground"
-                        : "border-white/10 bg-white/[0.03] text-muted-foreground hover:bg-white/[0.06]"
-                    }`}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              <input
-                value={localEvent}
-                onChange={(e) => setLocalEvent(e.target.value)}
-                placeholder="Nome evento"
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none"
-              />
+        {scope === "global" ? (
+          <section className="mt-6 glass rounded-3xl p-5 sm:p-6">
+            <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
               <div>
-                <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-widest text-muted-foreground">
-                  <span>Raggio massimo</span>
-                  <span>{radiusKm} km</span>
+                <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                  Lingua della sessione
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {SESSION_LANGUAGES.map((language) => (
+                    <button
+                      key={language}
+                      onClick={() => setSessionLanguage(language)}
+                      className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                        sessionLanguage === language
+                          ? "border-primary/60 bg-primary/15"
+                          : "border-white/10 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.07]"
+                      }`}
+                    >
+                      {language}
+                    </button>
+                  ))}
                 </div>
-                <input
-                  type="range"
-                  min={5}
-                  max={100}
-                  value={radiusKm}
-                  onChange={(e) => setRadiusKm(Number(e.target.value))}
-                  className="w-full accent-primary"
-                />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                  Modalità sessione
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <ModeButton
+                    active={playMode === "chat"}
+                    onClick={() => setPlayMode("chat")}
+                    icon={<MessageCircle className="h-4 w-4" />}
+                    label="Chat Mode"
+                    sub="5 minuti"
+                  />
+                  <ModeButton
+                    active={playMode === "voice"}
+                    onClick={() => setPlayMode("voice")}
+                    icon={<Mic className="h-4 w-4" />}
+                    label="Vocal Mode"
+                    sub="3 minuti"
+                  />
+                </div>
               </div>
             </div>
-          )}
-        </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <ModeButton
-            active={mode === "chat"}
-            onClick={() => setMode("chat")}
-            icon={<MessageCircle className="h-5 w-5" />}
-            title="Chat Mode"
-            time="5 min · round obbligatorio"
-            desc="Conversazioni testuali a tempo, voto privato solo alla fine."
-            tone="primary"
-          />
-          <ModeButton
-            active={mode === "webcam"}
-            onClick={() => setMode("webcam")}
-            icon={<Video className="h-5 w-5" />}
-            title="Webcam Mode"
-            time="3 min · round obbligatorio"
-            desc="Incontri faccia a faccia, microfono e videocamera controllabili."
-            tone="cool"
-          />
-        </div>
+            <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold">Partecipanti fissi: 10 utenti</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    La sessione parte solo quando si raggiunge il numero completo; lingua e
+                    compatibilità guidano il bilanciamento.
+                  </p>
+                </div>
+                <div className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold">0/10</div>
+              </div>
+            </div>
 
-        <motion.button
-          disabled={!mode}
-          onClick={() => setQueueing(true)}
-          whileTap={{ scale: 0.98 }}
-          className="mt-8 w-full rounded-full gradient-primary py-4 font-semibold text-primary-foreground shadow-glow disabled:opacity-40 disabled:shadow-none"
-        >
-          {mode ? `Entra in coda ${mode === "chat" ? "Chat" : "Webcam"}` : "Scegli chat o webcam"}
-        </motion.button>
+            <button
+              onClick={startGlobalRound}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full gradient-primary px-6 py-4 font-semibold text-primary-foreground shadow-glow"
+            >
+              <Sparkles className="h-5 w-5" />
+              Entra in sessione globale
+            </button>
+          </section>
+        ) : (
+          <section className="mt-6 grid gap-4 md:grid-cols-[1fr_1fr]">
+            <Link
+              to="/create-event"
+              className="glass-strong rounded-3xl p-6 transition hover:bg-white/[0.08]"
+            >
+              <CalendarPlus className="h-6 w-6 text-primary" />
+              <h2 className="mt-4 text-2xl font-semibold">Crea la tua stanza locale</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Data, orario, raggio fino a 50 km, tema, Random o Custom, Chat o Vocal.
+              </p>
+            </Link>
+            <Link
+              to="/events"
+              className="glass-strong rounded-3xl p-6 transition hover:bg-white/[0.08]"
+            >
+              <Users className="h-6 w-6 text-secondary" />
+              <h2 className="mt-4 text-2xl font-semibold">Entra in una stanza</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Prenotati agli eventi locali e accedi alla lobby quando la sessione si attiva.
+              </p>
+            </Link>
+          </section>
+        )}
 
-        <div className="mt-12 glass rounded-3xl p-6">
-          <div className="flex items-center justify-between">
+        <section className="mt-10 glass rounded-3xl p-5">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-secondary" />
-              <span className="text-sm font-medium">Partecipanti compatibili</span>
+              <h2 className="font-semibold">Persone vicine</h2>
             </div>
-            <span className="text-xs text-muted-foreground">min 4 · max 20 · pari</span>
+            <span className="text-xs text-muted-foreground">raggio 50 km</span>
           </div>
-          <div className="mt-5 flex flex-wrap gap-2">
-            {FAKE_QUEUE.slice(0, queueing ? count : 2).map((p, i) => (
-              <motion.div
-                key={p.name}
-                initial={{ opacity: 0, scale: 0.85 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: i * 0.05 }}
-                className="glass flex items-center gap-2 rounded-full py-1 pl-1 pr-3"
-              >
-                <div
-                  className={`grid h-7 w-7 place-items-center rounded-full bg-gradient-to-br ${p.color} text-xs font-semibold text-white`}
-                >
-                  {p.name[0]}
-                </div>
-                <span className="text-xs">
-                  {p.name}, {p.age}
-                </span>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </main>
 
-      <AnimatePresence>
-        {queueing && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 grid place-items-center bg-background/80 backdrop-blur-xl px-4"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="glass-strong relative w-full max-w-md rounded-3xl p-8 text-center"
-            >
-              <button
-                onClick={() => {
-                  setQueueing(false);
-                  setCount(2);
-                }}
-                className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/5 hover:bg-white/10"
-              >
-                <X className="h-4 w-4" />
-              </button>
-              <div className="mx-auto grid h-20 w-20 place-items-center rounded-full gradient-primary shadow-glow animate-pulse-glow">
-                {count >= 4 && count % 2 === 0 ? (
-                  <Sparkles className="h-8 w-8 text-white" />
-                ) : (
-                  <Loader2 className="h-8 w-8 animate-spin text-white" />
-                )}
-              </div>
-              <h2 className="mt-6 text-2xl font-semibold">
-                {count >= 4 && count % 2 === 0 ? "Stanza pronta" : "Bilanciamento in corso"}
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {count >= 4 && count % 2 === 0
-                  ? "Partenza tra un momento"
-                  : `${count}/4 pronti · serve un numero pari`}
-              </p>
-              <div className="mt-6 flex justify-center -space-x-2">
-                {FAKE_QUEUE.slice(0, count).map((p, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ scale: 0, x: -10 }}
-                    animate={{ scale: 1, x: 0 }}
-                    className={`grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br ${p.color} text-xs font-semibold text-white ring-2 ring-background`}
-                  >
-                    {p.name[0]}
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          {loadingNearby ? (
+            <div className="mt-5 flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t("common.loading")}
+            </div>
+          ) : nearby.length === 0 ? (
+            <p className="mt-5 text-sm text-muted-foreground">
+              Nessun profilo trovato con questi filtri.
+            </p>
+          ) : (
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {nearby.map((profile) => (
+                <div
+                  key={profile.id}
+                  className="rounded-3xl border border-white/10 bg-white/[0.04] p-4"
+                >
+                  <div className="flex items-center gap-3">
+                    {profile.profile_photo_url ? (
+                      <img
+                        src={profile.profile_photo_url}
+                        alt={profile.display_name}
+                        className="h-12 w-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div
+                        className={`grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br ${profile.avatar_color} font-semibold`}
+                      >
+                        {profile.display_name[0]}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">
+                        {profile.display_name}
+                        {profile.age ? `, ${profile.age}` : ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {profile.distance_km.toFixed(1)} km
+                        {profile.city ? ` · ${profile.city}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
     </div>
   );
 }
 
-function SessionButton({
+function Choice({
   active,
   onClick,
   icon,
@@ -289,7 +351,7 @@ function SessionButton({
 }: {
   active: boolean;
   onClick: () => void;
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   desc: string;
 }) {
@@ -297,15 +359,15 @@ function SessionButton({
     <motion.button
       onClick={onClick}
       whileHover={{ y: -2 }}
-      className={`rounded-3xl p-5 text-left transition ${
-        active ? "glass-strong ring-2 ring-secondary" : "glass hover:bg-white/[0.07]"
+      className={`rounded-3xl border p-5 text-left transition ${
+        active ? "border-primary/60 bg-primary/15 shadow-glow" : "border-white/10 bg-white/[0.04]"
       }`}
     >
-      <div className="grid h-10 w-10 place-items-center rounded-2xl gradient-cool text-primary-foreground">
+      <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/10 text-primary">
         {icon}
       </div>
-      <h3 className="mt-3 text-lg font-semibold">{title}</h3>
-      <p className="mt-1 text-xs text-muted-foreground">{desc}</p>
+      <h3 className="mt-4 text-xl font-semibold">{title}</h3>
+      <p className="mt-1 text-sm text-muted-foreground">{desc}</p>
     </motion.button>
   );
 }
@@ -314,41 +376,27 @@ function ModeButton({
   active,
   onClick,
   icon,
-  title,
-  time,
-  desc,
-  tone,
+  label,
+  sub,
 }: {
   active: boolean;
   onClick: () => void;
-  icon: React.ReactNode;
-  title: string;
-  time: string;
-  desc: string;
-  tone: "primary" | "cool";
+  icon: ReactNode;
+  label: string;
+  sub: string;
 }) {
   return (
-    <motion.button
+    <button
       onClick={onClick}
-      whileHover={{ y: -2 }}
-      className={`relative overflow-hidden rounded-3xl p-6 text-left transition-all ${active ? "glass-strong ring-2 ring-primary" : "glass hover:bg-white/[0.07]"}`}
+      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+        active ? "border-primary/60 bg-primary/15" : "border-white/10 bg-white/[0.04]"
+      }`}
     >
-      {active && (
-        <motion.div
-          layoutId="mode-glow"
-          className={`absolute -right-10 -top-10 h-40 w-40 rounded-full opacity-60 blur-2xl ${tone === "primary" ? "gradient-primary" : "gradient-cool"}`}
-        />
-      )}
-      <div
-        className={`grid h-11 w-11 place-items-center rounded-2xl ${tone === "primary" ? "gradient-primary" : "gradient-cool"} text-primary-foreground`}
-      >
-        {icon}
-      </div>
-      <div className="mt-4 flex items-baseline justify-between">
-        <h3 className="text-xl font-semibold">{title}</h3>
-        <span className="text-xs text-muted-foreground">{time}</span>
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">{desc}</p>
-    </motion.button>
+      {icon}
+      <span>
+        <span className="block text-sm font-semibold">{label}</span>
+        <span className="text-xs text-muted-foreground">{sub}</span>
+      </span>
+    </button>
   );
 }

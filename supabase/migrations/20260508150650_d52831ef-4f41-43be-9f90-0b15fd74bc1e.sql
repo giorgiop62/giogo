@@ -4,7 +4,7 @@ create table public.events (
   host_name text not null,
   theme text not null,
   mode text not null check (mode in ('random','custom')),
-  play_mode text not null default 'chat' check (play_mode in ('chat','webcam')),
+  play_mode text not null default 'chat' check (play_mode in ('chat','voice')),
   min_players int not null default 4 check (min_players >= 4 and min_players <= 20),
   age_min int check (age_min >= 18 and age_min <= 99),
   age_max int check (age_max >= 18 and age_max <= 99),
