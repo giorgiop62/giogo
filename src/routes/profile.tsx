@@ -214,14 +214,19 @@ function ProfilePage() {
       setHasCompleteProfile(true);
       setEditing(false);
       toast.success("Profilo salvato");
-    } catch (error) {
-      toast.error("Profilo non salvato", {
-        description: error instanceof Error ? error.message : "Riprova tra poco",
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
+    } catch (error: any) {
+  console.log("FULL ERROR:", error);
+
+  toast.error("Profilo non salvato", {
+    description:
+      error?.message ||
+      error?.error_description ||
+      JSON.stringify(error) ||
+      "Errore sconosciuto",
+  });
+} finally {
+  setSaving(false);
+}
 
   function onPhotoChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
