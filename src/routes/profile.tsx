@@ -157,7 +157,7 @@ function ProfilePage() {
     if (!photoFile || !user) return profile.profile_photo_url;
 
     const extension = photoFile.name.split(".").pop()?.toLowerCase() || "jpg";
-    const filePath = `${user.id}/${Date.now()}.${extension}`;
+    const filePath = `${user.id}/${crypto.randomUUID()}.${extension}`;
     const { error } = await supabase.storage
       .from("profile-photos")
       .upload(filePath, photoFile, { cacheControl: "3600", upsert: true });
