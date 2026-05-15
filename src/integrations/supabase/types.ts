@@ -80,6 +80,173 @@ export type Database = {
         };
         Relationships: [];
       };
+      game_rooms: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          ends_at: string | null;
+          finish_reason: string | null;
+          finished_at: string | null;
+          id: string;
+          language: string | null;
+          latitude: number | null;
+          longitude: number | null;
+          max_participants: number;
+          min_participants: number;
+          mode: string;
+          radius_km: number | null;
+          room_type: string;
+          started_at: string | null;
+          status: string;
+          theme: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          ends_at?: string | null;
+          finish_reason?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          language?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
+          max_participants?: number;
+          min_participants?: number;
+          mode: string;
+          radius_km?: number | null;
+          room_type: string;
+          started_at?: string | null;
+          status?: string;
+          theme?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          ends_at?: string | null;
+          finish_reason?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          language?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
+          max_participants?: number;
+          min_participants?: number;
+          mode?: string;
+          radius_km?: number | null;
+          room_type?: string;
+          started_at?: string | null;
+          status?: string;
+          theme?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "game_rooms_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      matchmaking_queue: {
+        Row: {
+          created_at: string;
+          id: string;
+          language: string | null;
+          latitude: number | null;
+          longitude: number | null;
+          matched_at: string | null;
+          mode: string;
+          radius_km: number | null;
+          room_id: string | null;
+          room_type: string;
+          status: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          language?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
+          matched_at?: string | null;
+          mode: string;
+          radius_km?: number | null;
+          room_id?: string | null;
+          room_type: string;
+          status?: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          language?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
+          matched_at?: string | null;
+          mode?: string;
+          radius_km?: number | null;
+          room_id?: string | null;
+          room_type?: string;
+          status?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "matchmaking_queue_room_id_fkey";
+            columns: ["room_id"];
+            isOneToOne: false;
+            referencedRelation: "game_rooms";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "matchmaking_queue_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      messages: {
+        Row: {
+          content: string;
+          created_at: string;
+          id: string;
+          room_id: string;
+          sender_id: string;
+        };
+        Insert: {
+          content: string;
+          created_at?: string;
+          id?: string;
+          room_id: string;
+          sender_id: string;
+        };
+        Update: {
+          content?: string;
+          created_at?: string;
+          id?: string;
+          room_id?: string;
+          sender_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "messages_room_id_fkey";
+            columns: ["room_id"];
+            isOneToOne: false;
+            referencedRelation: "game_rooms";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey";
+            columns: ["sender_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       match_requests: {
         Row: {
           created_at: string;
@@ -145,6 +312,87 @@ export type Database = {
           sender_id?: string;
         };
         Relationships: [];
+      };
+      room_messages: {
+        Row: {
+          body: string;
+          created_at: string;
+          id: string;
+          room_id: string;
+          sender_id: string;
+        };
+        Insert: {
+          body: string;
+          created_at?: string;
+          id?: string;
+          room_id: string;
+          sender_id: string;
+        };
+        Update: {
+          body?: string;
+          created_at?: string;
+          id?: string;
+          room_id?: string;
+          sender_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "room_messages_room_id_fkey";
+            columns: ["room_id"];
+            isOneToOne: false;
+            referencedRelation: "game_rooms";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "room_messages_sender_id_fkey";
+            columns: ["sender_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      room_participants: {
+        Row: {
+          id: string;
+          joined_at: string;
+          left_at: string | null;
+          room_id: string;
+          status: string;
+          user_id: string;
+        };
+        Insert: {
+          id?: string;
+          joined_at?: string;
+          left_at?: string | null;
+          room_id: string;
+          status?: string;
+          user_id: string;
+        };
+        Update: {
+          id?: string;
+          joined_at?: string;
+          left_at?: string | null;
+          room_id?: string;
+          status?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "room_participants_room_id_fkey";
+            columns: ["room_id"];
+            isOneToOne: false;
+            referencedRelation: "game_rooms";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "room_participants_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       voice_sessions: {
         Row: {
@@ -238,6 +486,7 @@ export type Database = {
           prompt_love: string | null;
           prompt_spontaneous: string | null;
           profile_photo_url: string | null;
+          search_radius_km: number;
           spoken_languages: string[];
           updated_at: string;
         };
@@ -263,6 +512,7 @@ export type Database = {
           prompt_love?: string | null;
           prompt_spontaneous?: string | null;
           profile_photo_url?: string | null;
+          search_radius_km?: number;
           spoken_languages?: string[];
           updated_at?: string;
         };
@@ -288,6 +538,7 @@ export type Database = {
           prompt_love?: string | null;
           prompt_spontaneous?: string | null;
           profile_photo_url?: string | null;
+          search_radius_km?: number;
           spoken_languages?: string[];
           updated_at?: string;
         };
@@ -298,6 +549,40 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      cancel_matchmaking: {
+        Args: Record<PropertyKey, never>;
+        Returns: undefined;
+      };
+      finish_expired_room: {
+        Args: {
+          p_room_id: string;
+        };
+        Returns: undefined;
+      };
+      join_matchmaking: {
+        Args: {
+          p_language?: string | null;
+          p_latitude?: number | null;
+          p_longitude?: number | null;
+          p_mode: string;
+          p_radius_km?: number | null;
+          p_room_type: string;
+          p_theme?: string | null;
+        };
+        Returns: {
+          matched: boolean;
+          participant_count: number;
+          queue_id: string;
+          room_id: string | null;
+          room_status: string | null;
+        }[];
+      };
+      leave_matchmaking: {
+        Args: {
+          p_room_id: string;
+        };
+        Returns: undefined;
+      };
       nearby_profiles: {
         Args: {
           origin_lat: number;
@@ -316,6 +601,12 @@ export type Database = {
           longitude: number | null;
           profile_photo_url: string | null;
         }[];
+      };
+      room_participant_count: {
+        Args: {
+          target_room_id: string;
+        };
+        Returns: number;
       };
     };
     Enums: {

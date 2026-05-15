@@ -185,6 +185,8 @@ create trigger match_requests_accept
 after insert on public.match_requests
 for each row execute function public.accept_match_request();
 
+drop function if exists public.nearby_profiles(double precision, double precision, double precision);
+
 create or replace function public.nearby_profiles(
   origin_lat double precision,
   origin_lng double precision,

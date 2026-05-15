@@ -120,7 +120,19 @@ function Dashboard() {
         mode: playMode,
         kind: "global",
         lang: sessionLanguage,
-        participants: 10,
+        participants: 2,
+      },
+    });
+  }
+
+  function startLocalRound() {
+    navigate({
+      to: "/room",
+      search: {
+        mode: playMode,
+        kind: "local",
+        radius: 50,
+        participants: 2,
       },
     });
   }
@@ -142,8 +154,8 @@ function Dashboard() {
               Modalità di gioco
             </h1>
             <p className="mt-4 max-w-2xl text-muted-foreground">
-              Scegli tra sessioni globali da 10 partecipanti o stanze locali basate su zona,
-              interessi e tema.
+              Scegli tra matchmaking globale o locale. La queue resta in attesa finché non ci sono 2
+              persone reali online nello stesso momento.
             </p>
           </section>
           <section className="glass-strong rounded-3xl p-5">
@@ -179,14 +191,14 @@ function Dashboard() {
             onClick={() => setScope("global")}
             icon={<Globe2 className="h-5 w-5" />}
             title="Modalità Globale"
-            desc="Sessioni internazionali basate su lingua e compatibilità. Partenza con 10 utenti."
+            desc="Queue realtime per lingua. La room nasce solo quando arriva un secondo utente reale."
           />
           <Choice
             active={scope === "local"}
             onClick={() => setScope("local")}
             icon={<MapPin className="h-5 w-5" />}
             title="Modalità Locale"
-            desc="Crea o entra in stanze entro 50 km, con tema, interessi e filtri personalizzati."
+            desc="Matchmaking entro 50 km per testare presenza, join/leave e aggiornamenti live."
           />
         </div>
 
@@ -239,13 +251,15 @@ function Dashboard() {
             <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="font-semibold">Partecipanti fissi: 10 utenti</p>
+                  <p className="font-semibold">Match reale: 2 utenti online</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    La sessione parte solo quando si raggiunge il numero completo; lingua e
-                    compatibilità guidano il bilanciamento.
+                    Entri in queue realtime; se sei da solo resti in ricerca senza chat, timer o
+                    stanza creata in anticipo.
                   </p>
                 </div>
-                <div className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold">0/10</div>
+                <div className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold">
+                  Queue live
+                </div>
               </div>
             </div>
 
@@ -259,6 +273,17 @@ function Dashboard() {
           </section>
         ) : (
           <section className="mt-6 grid gap-4 md:grid-cols-[1fr_1fr]">
+            <button
+              onClick={startLocalRound}
+              className="glass-strong rounded-3xl p-6 text-left transition hover:bg-white/[0.08]"
+            >
+              <Sparkles className="h-6 w-6 text-primary" />
+              <h2 className="mt-4 text-2xl font-semibold">Play locale rapido</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Entra in queue locale realtime. La stanza parte con 2 persone entro il raggio di
+                test.
+              </p>
+            </button>
             <Link
               to="/create-event"
               className="glass-strong rounded-3xl p-6 transition hover:bg-white/[0.08]"
