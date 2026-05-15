@@ -165,16 +165,43 @@ function PrivateChat({
   useEffect(() => {
     let alive = true;
     async function loadMessages() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("chat_messages")
         .select("*")
         .eq("match_id", match.id)
         .order("created_at", { ascending: true });
+      if (error) {
+        toast.error("Chat non caricata", { description: error.message });
+        return;
+      }
       if (alive) setMessages(data ?? []);
     }
+
+    const channel = supabase
+      .channel(`match-chat-${match.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "chat_messages",
+          filter: `match_id=eq.${match.id}`,
+        },
+        (payload) => {
+          const nextMessage = payload.new as MessageRow;
+          setMessages((current) =>
+            current.some((message) => message.id === nextMessage.id)
+              ? current
+              : [...current, nextMessage],
+          );
+        },
+      )
+      .subscribe();
+
     loadMessages();
     return () => {
       alive = false;
+      supabase.removeChannel(channel);
     };
   }, [match.id]);
 
@@ -189,9 +216,14 @@ function PrivateChat({
       .single();
     if (error) {
       toast.error("Messaggio non inviato", { description: error.message });
+      setDraft(body);
       return;
     }
-    if (data) setMessages((current) => [...current, data]);
+    if (data) {
+      setMessages((current) =>
+        current.some((message) => message.id === data.id) ? current : [...current, data],
+      );
+    }
   }
 
   return (

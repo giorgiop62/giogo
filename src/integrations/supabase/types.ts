@@ -559,6 +559,10 @@ export type Database = {
         };
         Returns: undefined;
       };
+      server_now: {
+        Args: Record<PropertyKey, never>;
+        Returns: string;
+      };
       join_matchmaking: {
         Args: {
           p_language?: string | null;

@@ -79,6 +79,7 @@ function Room() {
   const joinedRef = useRef(false);
   const finishingRef = useRef(false);
   const expiredRef = useRef<string | null>(null);
+  const serverOffsetMsRef = useRef(0);
 
   const partner = useMemo(
     () =>
@@ -340,10 +341,19 @@ function Room() {
       return;
     }
 
+    let alive = true;
+
+    async function syncServerClock() {
+      const { data } = await supabase.rpc("server_now");
+      if (!alive || !data) return;
+      serverOffsetMsRef.current = new Date(data).getTime() - Date.now();
+    }
+
     function tick() {
+      const now = Date.now() + serverOffsetMsRef.current;
       const remaining = Math.max(
         0,
-        Math.ceil((new Date(room.ends_at ?? "").getTime() - Date.now()) / 1000),
+        Math.ceil((new Date(room.ends_at ?? "").getTime() - now) / 1000),
       );
       setTime(remaining);
       if (remaining <= 0) {
@@ -355,9 +365,13 @@ function Room() {
       }
     }
 
+    void syncServerClock();
     tick();
     const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
   }, [room, total]);
 
   useEffect(() => {
@@ -416,7 +430,21 @@ function Room() {
       toast.error("Match non salvato", { description: error.message });
       return;
     }
-    toast.success("Interesse salvato. Se è reciproco comparirà nei Matches.");
+
+    const a = user.id < partner.id ? user.id : partner.id;
+    const b = user.id < partner.id ? partner.id : user.id;
+    const { data: match } = await supabase
+      .from("matches")
+      .select("id")
+      .eq("user_a", a)
+      .eq("user_b", b)
+      .maybeSingle();
+
+    toast.success(
+      match
+        ? "Congratulazioni, hai fatto match!"
+        : "Interesse salvato. Se è reciproco comparirà nei Matches.",
+    );
     await leaveRoom("/matches");
   }
 
