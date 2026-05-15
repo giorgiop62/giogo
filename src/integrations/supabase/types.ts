@@ -28,6 +28,7 @@ export type Database = {
           participant_count: number;
           play_mode: string;
           radius_km: number | null;
+          room_id: string | null;
           scheduled_at: string | null;
           status: string;
           theme: string;
@@ -51,6 +52,7 @@ export type Database = {
           participant_count?: number;
           play_mode?: string;
           radius_km?: number | null;
+          room_id?: string | null;
           scheduled_at?: string | null;
           status?: string;
           theme: string;
@@ -74,6 +76,7 @@ export type Database = {
           participant_count?: number;
           play_mode?: string;
           radius_km?: number | null;
+          room_id?: string | null;
           scheduled_at?: string | null;
           status?: string;
           theme?: string;
@@ -592,6 +595,16 @@ export type Database = {
           p_room_id: string;
         };
         Returns: undefined;
+      };
+      maybe_start_event_room: {
+        Args: {
+          p_event_id: string;
+        };
+        Returns: {
+          room_id: string | null;
+          started: boolean;
+          waiting_reason: string | null;
+        }[];
       };
       nearby_profiles: {
         Args: {

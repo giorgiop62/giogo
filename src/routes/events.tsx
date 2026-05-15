@@ -1,6 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarClock, Loader2, MapPin, Plus, Users } from "lucide-react";
 import { Nav } from "@/components/viberound/Nav";
 import { FloatingBackground } from "@/components/viberound/Background";
@@ -20,58 +20,102 @@ type EventRow = Tables<"events">;
 type EventWithDistance = EventRow & { distance_km: number | null; joined: boolean };
 
 function EventsPage() {
+  const navigate = useNavigate();
   const { t } = useLanguage();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [userCoords, setUserCoords] = useState<Coordinates | null>(null);
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<EventWithDistance[]>([]);
+  const openingRoomRef = useRef(false);
+
+  const openEventRoomIfReady = useCallback(
+    async (event: EventWithDistance) => {
+      if (!event.joined || openingRoomRef.current) return;
+      if (!event.scheduled_at || new Date(event.scheduled_at).getTime() > Date.now()) return;
+      if ((event.participant_count ?? 0) < 2) return;
+
+      const { data, error } = await supabase.rpc("maybe_start_event_room", {
+        p_event_id: event.id,
+      });
+
+      if (error) {
+        toast.error("Stanza evento non avviata", { description: error.message });
+        return;
+      }
+
+      const result = data?.[0];
+      if (!result?.started || !result.room_id) return;
+
+      openingRoomRef.current = true;
+      navigate({
+        to: "/room",
+        search: {
+          mode: event.play_mode === "voice" ? "voice" : "chat",
+          kind: "local",
+          eventRoomId: result.room_id,
+        },
+      });
+    },
+    [navigate],
+  );
+
+  const loadEvents = useCallback(async () => {
+    const currentUser = await getCurrentUser();
+    setUser(currentUser);
+    if (!currentUser) return;
+
+    const [{ data: profile }, { data: allEvents }, { data: bookings }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("latitude, longitude")
+        .eq("id", currentUser.id)
+        .maybeSingle(),
+      supabase.from("events").select("*").order("scheduled_at", { ascending: true }),
+      supabase.from("event_participants").select("event_id").eq("profile_id", currentUser.id),
+    ]);
+
+    const coords =
+      profile?.latitude && profile?.longitude
+        ? { latitude: profile.latitude, longitude: profile.longitude }
+        : null;
+    const joined = new Set((bookings ?? []).map((booking) => booking.event_id));
+
+    const nextEvents = (allEvents ?? []).map((event) => {
+      const eventCoords =
+        typeof event.latitude === "number" && typeof event.longitude === "number"
+          ? { latitude: event.latitude, longitude: event.longitude }
+          : null;
+      return {
+        ...event,
+        distance_km: coords && eventCoords ? distanceKm(coords, eventCoords) : null,
+        joined: joined.has(event.id) || event.host_id === currentUser.id,
+      };
+    });
+
+    setUserCoords(coords);
+    setEvents(nextEvents);
+    setLoading(false);
+
+    for (const event of nextEvents) {
+      await openEventRoomIfReady(event);
+    }
+  }, [openEventRoomIfReady]);
 
   useEffect(() => {
     let alive = true;
     async function load() {
-      const currentUser = await getCurrentUser();
       if (!alive) return;
-      setUser(currentUser);
-      if (!currentUser) return;
-
-      const [{ data: profile }, { data: allEvents }, { data: bookings }] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("latitude, longitude")
-          .eq("id", currentUser.id)
-          .maybeSingle(),
-        supabase.from("events").select("*").order("scheduled_at", { ascending: true }),
-        supabase.from("event_participants").select("event_id").eq("profile_id", currentUser.id),
-      ]);
-
-      const coords =
-        profile?.latitude && profile?.longitude
-          ? { latitude: profile.latitude, longitude: profile.longitude }
-          : null;
-      const joined = new Set((bookings ?? []).map((booking) => booking.event_id));
-
-      if (!alive) return;
-      setUserCoords(coords);
-      setEvents(
-        (allEvents ?? []).map((event) => {
-          const eventCoords =
-            typeof event.latitude === "number" && typeof event.longitude === "number"
-              ? { latitude: event.latitude, longitude: event.longitude }
-              : null;
-          return {
-            ...event,
-            distance_km: coords && eventCoords ? distanceKm(coords, eventCoords) : null,
-            joined: joined.has(event.id) || event.host_id === currentUser.id,
-          };
-        }),
-      );
-      setLoading(false);
+      await loadEvents();
     }
     load();
+    const id = window.setInterval(() => {
+      void loadEvents();
+    }, 5000);
     return () => {
       alive = false;
+      window.clearInterval(id);
     };
-  }, []);
+  }, [loadEvents]);
 
   async function joinEvent(event: EventWithDistance) {
     if (!user) return;
@@ -94,9 +138,14 @@ function EventsPage() {
       return;
     }
     setEvents((current) =>
-      current.map((item) => (item.id === event.id ? { ...item, joined: true } : item)),
+      current.map((item) =>
+        item.id === event.id
+          ? { ...item, joined: true, participant_count: Math.max(item.participant_count, 2) }
+          : item,
+      ),
     );
     toast.success("Prenotazione salvata");
+    await openEventRoomIfReady({ ...event, joined: true, participant_count: 2 });
   }
 
   return (
@@ -178,7 +227,7 @@ function EventCard({
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Users className="h-3.5 w-3.5 text-secondary" />
-              {event.participant_count}/{event.max_players}
+              {event.participant_count}/2
             </span>
             <span className="inline-flex items-center gap-1.5">
               <MapPin className="h-3.5 w-3.5 text-secondary" />
@@ -192,7 +241,7 @@ function EventCard({
         disabled={!canJoin || event.joined}
         className="mt-5 inline-flex w-full items-center justify-center rounded-full gradient-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-glow disabled:opacity-40 disabled:shadow-none"
       >
-        {event.joined ? "Prenotato" : canJoin ? t("events.join") : t("events.too_far")}
+        {event.joined ? "In attesa dello start" : canJoin ? t("events.join") : t("events.too_far")}
       </button>
     </div>
   );

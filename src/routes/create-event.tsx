@@ -67,8 +67,8 @@ function CreateEventPage() {
   const [matchMode, setMatchMode] = useState<MatchMode>("random");
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
-  const [minPlayers, setMinPlayers] = useState(4);
-  const [maxPlayers, setMaxPlayers] = useState(12);
+  const minPlayers = 2;
+  const maxPlayers = 2;
   const [ageMin, setAgeMin] = useState(21);
   const [ageMax, setAgeMax] = useState(35);
   const [genders, setGenders] = useState<string[]>(["Tutti"]);
@@ -179,11 +179,6 @@ function CreateEventPage() {
       toast.error("Inserisci tema, data e orario");
       return;
     }
-    if (minPlayers < 4 || maxPlayers > 20 || maxPlayers < minPlayers) {
-      toast.error("I partecipanti devono essere tra 4 e 20");
-      return;
-    }
-
     const invitedProfiles = nearby.filter((profile) => invited.includes(profile.id));
     setSubmitting(true);
     const { data: event, error } = await supabase
@@ -241,8 +236,7 @@ function CreateEventPage() {
           <p className="text-xs uppercase tracking-widest text-primary">Modalità Locale</p>
           <h1 className="mt-2 text-4xl font-semibold sm:text-5xl">Crea la tua stanza locale</h1>
           <p className="mt-3 text-muted-foreground">
-            Avvia una sessione con luogo, interessi e tema. Raggio massimo 50 km, min 4 e max 20
-            partecipanti.
+            Modalità test: ogni evento parte solo con 2 persone reali e diventa una stanza 1 vs 1.
           </p>
         </motion.div>
 
@@ -272,28 +266,14 @@ function CreateEventPage() {
               </div>
             </Field>
             <Field label={`Min partecipanti: ${minPlayers}`}>
-              <input
-                type="range"
-                min={4}
-                max={12}
-                value={minPlayers}
-                onChange={(event) => {
-                  const next = Number(event.target.value);
-                  setMinPlayers(next);
-                  setMaxPlayers((current) => Math.max(current, next));
-                }}
-                className="w-full accent-primary"
-              />
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm">
+                2 persone
+              </div>
             </Field>
             <Field label={`Max partecipanti: ${maxPlayers}`}>
-              <input
-                type="range"
-                min={minPlayers}
-                max={20}
-                value={maxPlayers}
-                onChange={(event) => setMaxPlayers(Number(event.target.value))}
-                className="w-full accent-secondary"
-              />
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm">
+                2 persone
+              </div>
             </Field>
           </div>
           <button
@@ -351,7 +331,7 @@ function CreateEventPage() {
               onClick={() => setMatchMode("random")}
               icon={<Shuffle className="h-5 w-5" />}
               title="Random"
-              desc="Chiunque può unirsi liberamente. La partita parte con almeno 4 giocatori."
+              desc="Chiunque può unirsi liberamente. In test la partita parte a 2 giocatori."
             />
             <ModeCard
               active={matchMode === "custom"}
@@ -511,7 +491,7 @@ function CreateEventPage() {
               <p className="mt-1 text-xs text-muted-foreground">
                 {matchMode === "random" ? "Random" : "Custom"} ·{" "}
                 {playMode === "chat" ? "Chat Mode" : "Vocal Mode"} · min {minPlayers} · max{" "}
-                {maxPlayers} · raggio 50 km
+                {maxPlayers} · test 1 vs 1 · raggio 50 km
               </p>
             </div>
           </div>
