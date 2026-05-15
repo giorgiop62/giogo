@@ -20,6 +20,10 @@ export async function getCurrentUser() {
 }
 
 export async function requireAuth() {
+  if (typeof window === "undefined") {
+    return { user: null };
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     throw redirect({ to: "/login" });
@@ -28,6 +32,10 @@ export async function requireAuth() {
 }
 
 export async function redirectIfAuthenticated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
   const user = await getCurrentUser();
   if (user) {
     throw redirect({ to: "/dashboard" });

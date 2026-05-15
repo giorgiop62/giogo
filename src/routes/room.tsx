@@ -20,7 +20,7 @@ import {
 import { toast } from "sonner";
 import { FloatingBackground } from "@/components/viberound/Background";
 import { Nav } from "@/components/viberound/Nav";
-import { getCurrentUser, requireAuth, type AuthUser } from "@/lib/auth";
+import { requireAuth, toAuthUser, type AuthUser } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -154,10 +154,32 @@ function Room() {
     async function joinQueue() {
       setLoading(true);
       setConnectionState("connecting");
-      const currentUser = await getCurrentUser();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      const currentUser = toAuthUser(userData.user ?? null);
+      console.log("USER", currentUser);
+      console.log("SESSION", session);
+      console.log("AUTH USER ERROR", userError);
       if (!alive) return;
       setUser(currentUser);
-      if (!currentUser) return;
+
+      if (!session?.access_token || !currentUser || userError) {
+        toast.error("Sessione scaduta", {
+          description: "Errore autenticazione matchmaking",
+        });
+        setLoading(false);
+        setConnectionState("offline");
+        navigate({ to: "/login" });
+        return;
+      }
+
+      console.log("RPC AUTH", {
+        hasAccessToken: Boolean(session.access_token),
+        tokenType: session.token_type,
+        expiresAt: session.expires_at,
+      });
 
       const { data: currentProfile, error: profileError } = await supabase
         .from("profiles")
@@ -191,10 +213,13 @@ function Room() {
         p_longitude: kind === "local" ? currentProfile.longitude : null,
         p_theme: kind === "global" ? "Global quick match" : "Local quick match",
       });
+      console.log("RPC DATA", data);
+      console.log("RPC ERROR", error);
 
       if (error || !data?.[0]) {
-        toast.error("Matchmaking non avviato", { description: error?.message });
+        toast.error("Errore autenticazione matchmaking", { description: error?.message });
         setLoading(false);
+        setConnectionState("offline");
         return;
       }
 
