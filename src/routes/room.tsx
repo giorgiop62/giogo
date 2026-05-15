@@ -80,6 +80,7 @@ function Room() {
   const finishingRef = useRef(false);
   const expiredRef = useRef<string | null>(null);
   const serverOffsetMsRef = useRef(0);
+  const votingRef = useRef(false);
 
   const partner = useMemo(
     () =>
@@ -140,8 +141,13 @@ function Room() {
       .order("created_at", { ascending: true });
     setMessages(messageRows ?? []);
 
-    if (roomData?.status === "finished" && roomData.finish_reason === "user_disconnected") {
-      toast.info("Utente disconnesso");
+    if (roomData?.status === "finished") {
+      if (roomData.finish_reason === "user_disconnected") {
+        toast.info("Utente disconnesso");
+      }
+      if (roomData.finish_reason === "timer_expired") {
+        openVote();
+      }
     }
 
     if (currentUserId && rows.some((participant) => participant.user_id === currentUserId)) {
@@ -335,6 +341,15 @@ function Room() {
   }, [loadRoomState, room?.id, user?.id]);
 
   useEffect(() => {
+    votingRef.current = showVote;
+  }, [showVote]);
+
+  function openVote() {
+    votingRef.current = true;
+    setShowVote(true);
+  }
+
+  useEffect(() => {
     if (!room) return;
     if (room.status !== "active" || !room.ends_at) {
       setTime(total);
@@ -357,7 +372,7 @@ function Room() {
       );
       setTime(remaining);
       if (remaining <= 0) {
-        setShowVote(true);
+        openVote();
         if (room.id && expiredRef.current !== room.id) {
           expiredRef.current = room.id;
           void supabase.rpc("finish_expired_room", { p_room_id: room.id });
@@ -394,6 +409,10 @@ function Room() {
       const roomId = roomIdRef.current;
       if (finishingRef.current) return;
       if (roomId && joinedRef.current) {
+        if (votingRef.current) {
+          void supabase.rpc("finish_round_without_disconnect", { p_room_id: roomId });
+          return;
+        }
         void supabase.rpc("leave_matchmaking", { p_room_id: roomId });
         return;
       }
@@ -413,6 +432,16 @@ function Room() {
     finishingRef.current = true;
     if (room?.id) {
       await supabase.rpc("leave_matchmaking", { p_room_id: room.id });
+    } else if (queue?.status === "queued") {
+      await supabase.rpc("cancel_matchmaking");
+    }
+    navigate({ to: destination });
+  }
+
+  async function leaveAfterVote(destination: "/dashboard" | "/matches" = "/dashboard") {
+    finishingRef.current = true;
+    if (room?.id) {
+      await supabase.rpc("finish_round_without_disconnect", { p_room_id: room.id });
     } else if (queue?.status === "queued") {
       await supabase.rpc("cancel_matchmaking");
     }
@@ -445,7 +474,7 @@ function Room() {
         ? "Congratulazioni, hai fatto match!"
         : "Interesse salvato. Se è reciproco comparirà nei Matches.",
     );
-    await leaveRoom("/matches");
+    await leaveAfterVote("/matches");
   }
 
   async function send() {
@@ -667,7 +696,7 @@ function Room() {
           </button>
           {(myParticipant || queue?.status === "queued") && !isFinished ? (
             <button
-              onClick={() => (isActive ? setShowVote(true) : leaveRoom("/dashboard"))}
+              onClick={() => (isActive ? openVote() : leaveRoom("/dashboard"))}
               className="rounded-full gradient-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-glow"
             >
               {isActive ? "Termina e vota" : "Esci dalla queue"}
@@ -696,7 +725,7 @@ function Room() {
               </p>
               <div className="mt-8 flex justify-center gap-4">
                 <button
-                  onClick={() => leaveRoom("/dashboard")}
+                  onClick={() => leaveAfterVote("/dashboard")}
                   className="grid h-20 w-20 place-items-center rounded-full glass hover:bg-white/10"
                 >
                   <X className="h-7 w-7 text-muted-foreground" />

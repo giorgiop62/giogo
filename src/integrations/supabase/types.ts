@@ -559,6 +559,12 @@ export type Database = {
         };
         Returns: undefined;
       };
+      finish_round_without_disconnect: {
+        Args: {
+          p_room_id: string;
+        };
+        Returns: undefined;
+      };
       server_now: {
         Args: Record<PropertyKey, never>;
         Returns: string;
